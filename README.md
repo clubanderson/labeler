@@ -25,17 +25,17 @@ should work like this...
         helm --kube-context=kind-kind repo add chart-name repo-name
         helm --kube-context=kind-kind install my-release-name repo-name/chart-name --version 1.0.1 --create-namespace ./labeler  app.kubernetes.io/part-of=and-another-sample-value
 
-get started:
+##get started:
 
 You need a kubernetes cluster - create one with Kind
 [Zero to Kube and GO in 90 Seconds](https://clubanderson.medium.com/zero-to-kube-and-go-in-90-seconds-f6f4730ab265)
 
-to build:
+##to build:
 
     go build labeler.go
     chmod +x labeler
 
-to test:
+##to test:
 
     helm --kube-context=kind-kind repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
     helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler app.kubernetes.io/part-of=sample-value
@@ -50,7 +50,7 @@ to reset:
     helm uninstall nginx -n nginx
 
 
-sample output:
+##sample output:
 
     helm install nginx oci://ghcr.io/nginxinc/charts/nginx-ingress -n nginx --version 1.2.0 | ./labeler
 
