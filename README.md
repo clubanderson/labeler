@@ -28,7 +28,7 @@ should work like this...
 get started:
 
         You need a kubernetes cluster - create one with Kind
-        https://clubanderson.medium.com/zero-to-kube-and-go-in-90-seconds-f6f4730ab265
+        [Zero to Kube and GO in 90 Seconds](https://clubanderson.medium.com/zero-to-kube-and-go-in-90-seconds-f6f4730ab265)
 
 to build:
 
