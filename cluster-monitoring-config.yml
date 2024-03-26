@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+  annotations:
+    edge.kubestellar.io/downsync-overwrite: "false"
+data:
+  config.yaml: |
+    enableUserWorkload: true
+    prometheusK8s:
+      prometheusExternalLabelName: cluster
+      externalLabels:
+        cluster: "%(env)"
+      remoteWrite:
+      - url: "%(remoteWriteURL)"
+        writeRelabelConfigs:
+        - sourceLabels: [prometheus_replica]
+          regex: 'prometheus-user-workload-1'
+          action: drop
+        - sourceLabels: [prometheus_replica]
+          regex: 'prometheus-k8s-1'
+          action: drop
+        headers:
+          THANOS-TENANT: "%(env)"
+
