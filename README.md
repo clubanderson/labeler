@@ -24,10 +24,12 @@ should work like this...
         helm install my-release-name repo-name/chart-name ./labeler
 
 to build:
+
     go build labeler.go
     chmod +x labeler.go
 
 to test:
+
     helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
     helm install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets | ./labeler
 
