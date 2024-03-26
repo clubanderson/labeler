@@ -10,34 +10,34 @@ result - all resources installed via kubectl apply, kubectl -k, and helm install
 should work like this...
 
     kubectl (bunch of files in a path)
-        kubectl --context=kind -f some/path/with/yaml/files | ./labeler app.kubernetes.io/part-of=sample-value
+        kubectl --context=kind-kind -f some/path/with/yaml/files | ./labeler app.kubernetes.io/part-of=sample-value
 
     kubectl (single file)
-        kubectl --context=kind apply -f a.yaml-file.yml | ./labeler app.kubernetes.io/part-of=another-sample-value
+        kubectl --context=kind-kind apply -f a.yaml-file.yml | ./labeler app.kubernetes.io/part-of=another-sample-value
     
     kustomize
-        kubectl --context=kind -k some/path/with/kustomization.yml | ./labeler app.kubernetes.io/part-of=sample-value
+        kubectl --context=kind-kind -k some/path/with/kustomization.yml | ./labeler app.kubernetes.io/part-of=sample-value
 
     helm (local chart)
-        helm --kube-context=kind install my-release-name ./mychart | ./labeler app.kubernetes.io/part-of=my-release-value
+        helm --kube-context=kind-kind install my-release-name ./mychart | ./labeler app.kubernetes.io/part-of=my-release-value
 
     helm (remote chart)
-        helm --kube-context=kind repo add chart-name repo-name
-        helm --kube-context=kind install my-release-name repo-name/chart-name --version 1.0.1 --create-namespace ./labeler  app.kubernetes.io/part-of=and-another-sample-value
+        helm --kube-context=kind-kind repo add chart-name repo-name
+        helm --kube-context=kind-kind install my-release-name repo-name/chart-name --version 1.0.1 --create-namespace ./labeler  app.kubernetes.io/part-of=and-another-sample-value
 
 to build:
 
     go build labeler.go
-    chmod +x labeler.go
+    chmod +x labeler
 
 to test:
 
-    helm --kube-context=kind repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
-    helm --kube-context=kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler app.kubernetes.io/part-of=sample-value
-
+    helm --kube-context=kind-kind repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+    helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler app.kubernetes.io/part-of=sample-value
+    
     - or -
 
-    helm --kube-context=kind install nginx oci://ghcr.io/nginxinc/charts/nginx-ingress -n nginx --create-namespace --version 1.2.0 | ./labeler app.kubernetes.io/part-of=sample-value
+    helm --kube-context=kind-kind install nginx oci://ghcr.io/nginxinc/charts/nginx-ingress -n nginx --create-namespace --version 1.2.0 | ./labeler app.kubernetes.io/part-of=sample-value
  
 to reset:
 
