@@ -139,9 +139,9 @@ func (p inputParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 	}
 
 	if isHelm {
-		originalCommandComponents := []string{"template"}
-		originalCommandComponents = append(originalCommandComponents, strings.Split(originalCommand, " ")[2:]...)
-		output, err := p.runCmd("helm", originalCommandComponents)
+		modifiedCommand := strings.Replace(originalCommand, "install", "template", 1)
+		modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
+		output, err := p.runCmd("helm", modifiedCommandComponents)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
