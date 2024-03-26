@@ -4,24 +4,26 @@
 A labeler for all kubectl, kustomize, and helm resources...  how does it work
 HACKME!!!
 
+result - all resources installed via kubectl apply, kubectl -k, and helm install are labeled
+
 
 should work like this...
 
     kubectl (bunch of files in a path)
-        kubectl apply -f some/path/with/yaml/files | ./labeler
+        kubectl apply -f some/path/with/yaml/files | ./labeler app.kubernetes.io/part-of=sample-value
 
     kubectl (single file)
-        kubectl apply -f a.yaml-file.yml | ./labeler
+        kubectl apply -f a.yaml-file.yml | ./labeler app.kubernetes.io/part-of=another-sample-value
     
     kustomize
-        kubectl apply -k some/path/with/kustomization.yml | ./labeler
+        kubectl apply -k some/path/with/kustomization.yml | ./labeler app.kubernetes.io/part-of=sample-value
 
     helm (local chart)
-        helm install my-release-name ./mychart | ./labeler
+        helm install my-release-name ./mychart | ./labeler app.kubernetes.io/part-of=my-release-value
 
     helm (remote chart)
         helm repo add chart-name repo-name
-        helm install my-release-name repo-name/chart-name --version 1.0.1 --create-namespace ./labeler
+        helm install my-release-name repo-name/chart-name --version 1.0.1 --create-namespace ./labeler  app.kubernetes.io/part-of=and-another-sample-value
 
 to build:
 
@@ -31,11 +33,11 @@ to build:
 to test:
 
     helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
-    helm install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets | ./labeler
+    helm install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets | ./labeler app.kubernetes.io/part-of=sample-value
 
     - or -
 
-    helm install nginx oci://ghcr.io/nginxinc/charts/nginx-ingress -n nginx --version 1.2.0 | ./labeler
+    helm install nginx oci://ghcr.io/nginxinc/charts/nginx-ingress -n nginx --version 1.2.0 | ./labeler app.kubernetes.io/part-of=sample-value
  
 to reset:
 
