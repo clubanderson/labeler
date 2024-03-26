@@ -13,6 +13,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/restmapper"
 )
 
 type inputParamsStruct struct {
@@ -50,7 +52,7 @@ func main() {
 
 	var rootCmd = &cobra.Command{
 		Use:   "labeler",
-		Short: "Transform the input to uppercase letters",
+		Short: "label all kubernetes resources with provided key/value pair",
 		Long: `Simple demo of the usage of linux pipes
 	Transform the input (pipe or file) to uppercase letters`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -58,7 +60,7 @@ func main() {
 			if flags.verbose {
 				print = logOut
 			}
-			return p.runCommand()
+			return p.detectInput()
 		},
 	}
 
@@ -82,12 +84,12 @@ func main() {
 	}
 }
 
-func (p inputParamsStruct) runCommand() error {
+func (p inputParamsStruct) detectInput() error {
 	if isInputFromPipe() {
 		// if input is from a pipe, upper case the
 		// content of stdin
 		print("data is from pipe")
-		return p.toLabel(os.Stdin, os.Stdout)
+		return p.helmOrKubectl(os.Stdin, os.Stdout)
 	} else {
 		// ...otherwise get the file
 		file, e := getFile()
@@ -95,7 +97,7 @@ func (p inputParamsStruct) runCommand() error {
 			return e
 		}
 		defer file.Close()
-		return p.toLabel(file, os.Stdout)
+		return p.helmOrKubectl(file, os.Stdout)
 	}
 }
 
@@ -119,33 +121,59 @@ func getFile() (*os.File, error) {
 	return file, nil
 }
 
-func (p inputParamsStruct) toLabel(r io.Reader, w io.Writer) error {
-	originalCommand, err := p.detectOriginalCommand()
+func (p inputParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
+	originalCommand, err := p.getOriginalCommandFromHistory()
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Original command: %q\n", originalCommand)
+	isHelm, isKubectl, isKustomize := false, false, false
+
 	if strings.HasPrefix(originalCommand, "helm") {
 		fmt.Printf("your running helm\n")
+		isHelm = true
 	} else if strings.HasPrefix(originalCommand, "kubectl") {
 		fmt.Printf("your running kubectl\n")
 	}
 
-	originalCommandComponents := []string{"install", "sealed-secrets"}
-	originalCommandComponents = append(originalCommandComponents, strings.Split(originalCommand, " ")[2:]...)
-	err = p.runCmd("helm", originalCommandComponents)
-	if err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
+	if isHelm {
+		originalCommandComponents := []string{"template"}
+		originalCommandComponents = append(originalCommandComponents, strings.Split(originalCommand, " ")[2:]...)
+		output, err := p.runCmd("helm", originalCommandComponents)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		err = toUppercase(strings.NewReader(string(output)), os.Stdout)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return err
+		}
+	} else {
+		if strings.Contains(originalCommand, "-k") {
+			isKustomize = true
+			_ = isKustomize
+			// this is kustomize - not sure if there is a reason to treat this differently then regular kubectl
+			// HACKME!!!!
+		} else {
+			isKubectl = true
+			_ = isKubectl
+			// this is plain kubectl
+			// HACKME!!!!
+		}
+		toUppercase(r, w)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
 	}
 
-	toUppercase(r, w)
-	if err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
-	}
+	// gvk (group, version, kind) should come out of toUppercase. you will use yaml decoding to find the '.kind', '.apiVersion', and '.metadata.name' from all yaml records. HINT: apiVersion is the group/version (gv) in gvk, and kind is the kind (k) in gvk
+	// p.setLabel(output, group, version, kind, objectName)
+	// HACKME!!!
+
 	return nil
 }
 
@@ -165,6 +193,7 @@ func toUppercase(r io.Reader, w io.Writer) error {
 	scanner := bufio.NewScanner(bufio.NewReader(r))
 	for scanner.Scan() {
 		line := scanner.Text()
+		// HACKME!!! - this string comparison is wrong - this should use yaml decoding to find the '.kind', '.apiVersion', and '.metadata.name' from all yaml records
 		if strings.HasPrefix(line, "kind:") || strings.HasPrefix(line, "apiVersion:") || strings.HasPrefix(line, "  name:") {
 			line = strings.ToUpper(line)
 			_, err := fmt.Fprintf(w, line+"\n")
@@ -176,7 +205,7 @@ func toUppercase(r io.Reader, w io.Writer) error {
 	return nil
 }
 
-func (p inputParamsStruct) runCmd(cmdToRun string, cmdArgs []string) error {
+func (p inputParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) {
 	fmt.Println(cmdArgs)
 	cmd := exec.Command(cmdToRun, cmdArgs...)
 	cmd.Env = append(cmd.Env, "PATH="+p.path)
@@ -189,22 +218,19 @@ func (p inputParamsStruct) runCmd(cmdToRun string, cmdArgs []string) error {
 	err := cmd.Start()
 	if err != nil {
 		log.Println("   🔴 error starting command:", err)
-		return err
+		return nil, err
 	}
 
 	err = cmd.Wait()
 	if err != nil {
 		log.Println("   🔴 error waiting for command to complete:", err)
 		log.Println(string(outputBuf.Bytes()))
-		return err
+		return nil, err
 	}
-
-	fmt.Println(string(outputBuf.Bytes()))
-
-	return err
+	return outputBuf.Bytes(), nil
 }
 
-func (p inputParamsStruct) detectOriginalCommand() (string, error) {
+func (p inputParamsStruct) getOriginalCommandFromHistory() (string, error) {
 	// TODO: this may not always be zsh, could be bash - should check if bash_history or zsh_history has "labeler" in it - that would tell us we have the right history file
 	cmd := exec.Command("bash", "-c", "history -r ~/.zsh_history; history 1")
 	cmd.Env = append(cmd.Env, "PATH="+p.path)
@@ -226,11 +252,11 @@ func (p inputParamsStruct) detectOriginalCommand() (string, error) {
 		return "", err
 	}
 
-	originalCmd, err := extractCmd(string(outputBuf.Bytes()))
+	originalCmd, err := extractCmdFromHistory(string(outputBuf.Bytes()))
 	return originalCmd, err
 }
 
-func extractCmd(historyText string) (string, error) {
+func extractCmdFromHistory(historyText string) (string, error) {
 	// Find the index of the first semicolon
 	semicolonIndex := strings.Index(historyText, ";")
 	if semicolonIndex == -1 {
@@ -249,4 +275,42 @@ func extractCmd(historyText string) (string, error) {
 	// trim everything after the pipe character and trim any leading or trailing whitespace
 	return strings.TrimSpace(trimmedCommand[:pipeIndex]), nil
 
+}
+
+func (p inputParamsStruct) setLabel(output, group, version, kind, objectName string) error {
+	// decode output...
+	//   decode 'output'  to find each object definition (separated by '---' but do not do string split here - there is a better way!)
+
+	// yamlBytes := marshall(obj)...
+
+	// runtimeObj := decodeYaml(yamlBytes)...
+
+	// gvk := runtimeObj.GroupVersionKind()
+
+	// var gvr schema.GroupVersionResource
+	// gvr, err = getGVRFromGVK(mapper, gvk)
+	// if err != nil {
+	// 	if p.debug {
+	// 		log.Printf("          🟡 error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
+	// 	}
+	// }
+
+	// now that you have gvr, run 'kubectl label %group%/%version%/%resource% %objectName% app.kubernetes.io/part-of=%value%'
+	return nil
+}
+
+func getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapping: %v", err)
+	}
+
+	gvr := mapping.Resource
+
+	// Check if the resource is found
+	if gvr.Resource == "" {
+		return schema.GroupVersionResource{}, fmt.Errorf("resource name not found for kind %s/%s %s", gvk.Group, gvk.Version, gvk.Kind)
+	}
+
+	return gvr, nil
 }
