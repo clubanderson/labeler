@@ -91,7 +91,7 @@ func main() {
 			if flags.verbose {
 				print = logOut
 			}
-			labelerClientSet, labelerRestConfig, labelerDynamicClient := p.switchContext("contextName")
+			labelerClientSet, labelerRestConfig, labelerDynamicClient := p.switchContext(flags.context)
 			_, _, _ = labelerClientSet, labelerRestConfig, labelerDynamicClient
 
 			return p.detectInput(labelerRestConfig)
@@ -475,23 +475,30 @@ func (p ParamsStruct) sampleSetLabel(ocDynamicClientCoreOrWds dynamic.Interface,
 
 func (p ParamsStruct) switchContext(contextName string) (*kubernetes.Clientset, *rest.Config, dynamic.Interface) {
 	var err error
+	var kubeConfigPath string
 
-	kubeConfigPath := filepath.Join(flags.kubeconfig)
+	if flags.kubeconfig == "" {
+		kubeConfigPath = filepath.Join(p.homeDir, ".kube", "config")
+	} else {
+		kubeConfigPath = filepath.Join(flags.kubeconfig)
+	}
 
 	// load kubeconfig from file
 	apiConfig, err := clientcmd.LoadFromFile(kubeConfigPath)
 	if err != nil {
-		log.Printf("🔴 error loading kubeconfig: %v\n", err)
+		log.Printf("🔴 error loading kubeconfig: %q\n", err)
 		os.Exit(1)
 	}
 
-	// check if the specified context exists in the kubeconfig
-	if _, exists := apiConfig.Contexts[contextName]; !exists {
-		log.Printf("Context %s does not exist in the kubeconfig\n", contextName)
-		os.Exit(1)
+	if flags.context != "" {
+		// check if the specified context exists in the kubeconfig
+		if _, exists := apiConfig.Contexts[contextName]; !exists {
+			log.Printf("Context %q does not exist in the kubeconfig\n", contextName)
+			os.Exit(1)
+		}
+		// switch the current context in the kubeconfig
+		apiConfig.CurrentContext = contextName
 	}
-	// switch the current context in the kubeconfig
-	apiConfig.CurrentContext = contextName
 
 	// create a new clientset with the updated config
 	clientConfig := clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{})
