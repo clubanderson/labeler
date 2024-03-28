@@ -249,6 +249,10 @@ func (p inputParamsStruct) getOriginalCommandFromHistory() (string, error) {
 		//     echo PROMPT_COMMAND="history -a; $PROMPT_COMMAND"  > ~/.bashrc
 		//     source ~/.bashrc
 		// ISSUE: unlike mac, ubuntu does not save the command piped into the labeler in history until after labeler is done executing - there has to be a way to get this to work HACKME!!!
+		// you can still test with
+		//     history -s "helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace"
+		//     helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler app.kubernetes.io/part-of=sample-value
+		// terrible workaround - but there has to be another way
 		cmd = exec.Command("bash", "-c", "history -r ~/.bash_history; history 1")
 	default:
 	}
@@ -289,7 +293,8 @@ func extractCmdFromHistory(historyText string) (string, error) {
 	// find the index of the first pipe character in the trimmed command
 	pipeIndex := strings.Index(trimmedCommand, "|")
 	if pipeIndex == -1 {
-		return "", fmt.Errorf("pipe character not found")
+		return string(trimmedCommand), nil
+		// return "", fmt.Errorf("pipe character not found")
 	}
 
 	// trim everything after the pipe character and trim any leading or trailing whitespace
