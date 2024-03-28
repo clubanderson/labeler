@@ -248,12 +248,9 @@ func (p inputParamsStruct) getOriginalCommandFromHistory() (string, error) {
 		// remember to set:
 		//     echo PROMPT_COMMAND="history -a; $PROMPT_COMMAND"  > ~/.bashrc
 		//     source ~/.bashrc
-		// ISSUE: unlike mac, ubuntu does not save the command piped into the labeler in history until after labeler is done executing - there has to be a way to get this to work HACKME!!!
-		// you can still test with
-		//     history -s "helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace"
-		//     helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler app.kubernetes.io/part-of=sample-value
-		// terrible workaround - but there has to be another way
-		cmd = exec.Command("bash", "-c", "history -r ~/.bash_history; history 1")
+		// test with:
+		//     history -s "helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace" > exec | ./labeler app.kubernetes.io/part-of=sample-value
+		cmd = exec.Command("bash", "-c", "history -r ~/.bash_history; history 3")
 	default:
 	}
 
@@ -284,7 +281,7 @@ func extractCmdFromHistory(historyText string) (string, error) {
 	// Find the index of the first semicolon
 	helmTextIndex := strings.Index(historyText, "helm")
 	if helmTextIndex == -1 {
-		return "", fmt.Errorf("helm not found")
+		return "", fmt.Errorf("helm not found: %v", historyText)
 	}
 
 	// trim everything before the semicolon and trim any leading or trailing whitespace
