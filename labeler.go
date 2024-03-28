@@ -26,6 +26,8 @@ type inputParamsStruct struct {
 var flags struct {
 	filepath string
 	verbose  bool
+	install  bool
+	label    string
 }
 
 var flagsName = struct {
@@ -33,11 +35,19 @@ var flagsName = struct {
 	fileShort    string
 	verbose      string
 	verboseShort string
+	install      string
+	installShort string
+	label        string
+	labelShort   string
 }{
 	file:         "file",
 	fileShort:    "f",
 	verbose:      "verbose",
 	verboseShort: "v",
+	install:      "install",
+	installShort: "i",
+	label:        "label",
+	labelShort:   "l",
 }
 
 func main() {
@@ -72,12 +82,28 @@ func main() {
 		flagsName.fileShort,
 		"", "path to the file")
 
+	// flag for the filepath
+	rootCmd.PersistentFlags().StringVarP(
+		&flags.label,
+		flagsName.label,
+		flagsName.labelShort,
+		"", "label to apply to all resources e.g. -l app.kubernetes.io/part-of=sample-value")
+
 	// flag for the verbosity level
 	rootCmd.PersistentFlags().BoolVarP(
 		&flags.verbose,
 		flagsName.verbose,
 		flagsName.verboseShort,
 		false, "log verbose output")
+
+	// flag for to indicate whether to use with 'helm install' with dry-run, or not.
+	// Use without dry-run require shell history, use with dry-run does not.
+	// Use with dry-run does not give us access to the vars used in 'helm install' however.
+	rootCmd.PersistentFlags().BoolVarP(
+		&flags.install,
+		flagsName.install,
+		flagsName.installShort,
+		false, "use directly on 'helm install' instead of dry-run input")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -86,6 +112,17 @@ func main() {
 }
 
 func (p inputParamsStruct) detectInput() error {
+	if !flags.install {
+		if isInputFromPipe() {
+			err := toUppercase(os.Stdin, os.Stdout)
+			if err != nil {
+				fmt.Println("Error (to uppercase):", err)
+				return err
+			}
+		}
+		log.Printf("labeling all resources with: %v", flags.label)
+		return nil
+	}
 	if isInputFromPipe() {
 		// if input is from a pipe, upper case the
 		// content of stdin
