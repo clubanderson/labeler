@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -44,7 +45,7 @@ func main() {
 
 	currentUser, err := user.Current()
 	if err != nil {
-		log.Println("Error:", err)
+		log.Println("Error (current user):", err)
 		return
 	}
 	p.homeDir = currentUser.HomeDir
@@ -124,7 +125,7 @@ func getFile() (*os.File, error) {
 func (p inputParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 	originalCommand, err := p.getOriginalCommandFromHistory()
 	if err != nil {
-		fmt.Println("Error:", err)
+		fmt.Println("Error (get history):", err)
 		os.Exit(1)
 	}
 
@@ -143,12 +144,12 @@ func (p inputParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 		modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
 		output, err := p.runCmd("helm", modifiedCommandComponents)
 		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("Error (run helm):", err)
 			os.Exit(1)
 		}
 		err = toUppercase(strings.NewReader(string(output)), os.Stdout)
 		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("Error (to uppercase):", err)
 			return err
 		}
 	} else {
@@ -232,7 +233,25 @@ func (p inputParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, er
 
 func (p inputParamsStruct) getOriginalCommandFromHistory() (string, error) {
 	// TODO: this may not always be zsh, could be bash - should check if bash_history or zsh_history has "labeler" in it - that would tell us we have the right history file
-	cmd := exec.Command("bash", "-c", "history -r ~/.zsh_history; history 1")
+
+	//placeholder
+	cmd := exec.Command("bash")
+
+	switch os := runtime.GOOS; os {
+	case "darwin":
+		// if mac
+		log.Println("mac")
+		cmd = exec.Command("bash", "-c", "history -r ~/.zsh_history; history 1")
+	case "linux":
+		log.Println("linux")
+		// if linux (tested on ubuntu)
+		// remember to set:
+		//     echo PROMPT_COMMAND="history -a; $PROMPT_COMMAND"  > ~/.bashrc
+		//     source ~/.bashrc
+		cmd = exec.Command("bash", "-c", "history -r ~/.bash_history; history 1")
+	default:
+	}
+
 	cmd.Env = append(cmd.Env, "PATH="+p.path)
 	cmd.Env = append(cmd.Env, "HOME="+p.homeDir)
 
@@ -258,13 +277,13 @@ func (p inputParamsStruct) getOriginalCommandFromHistory() (string, error) {
 
 func extractCmdFromHistory(historyText string) (string, error) {
 	// Find the index of the first semicolon
-	semicolonIndex := strings.Index(historyText, ";")
-	if semicolonIndex == -1 {
-		return "", fmt.Errorf("semicolon not found")
+	helmTextIndex := strings.Index(historyText, "helm")
+	if helmTextIndex == -1 {
+		return "", fmt.Errorf("helm not found")
 	}
 
 	// trim everything before the semicolon and trim any leading or trailing whitespace
-	trimmedCommand := strings.TrimSpace(historyText[semicolonIndex+1:])
+	trimmedCommand := strings.TrimSpace(historyText[helmTextIndex:])
 
 	// find the index of the first pipe character in the trimmed command
 	pipeIndex := strings.Index(trimmedCommand, "|")
