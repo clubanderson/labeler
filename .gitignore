@@ -1,1 +1,5 @@
 labeler
+*.kubeconfig
+/Library
+/network-cache
+exec
