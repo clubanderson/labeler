@@ -248,6 +248,7 @@ func (p inputParamsStruct) getOriginalCommandFromHistory() (string, error) {
 		// remember to set:
 		//     echo PROMPT_COMMAND="history -a; $PROMPT_COMMAND"  > ~/.bashrc
 		//     source ~/.bashrc
+		// ISSUE: unlike mac, ubuntu does not save the command piped into the labeler in history until after labeler is done executing - there has to be a way to get this to work HACKME!!!
 		cmd = exec.Command("bash", "-c", "history -r ~/.bash_history; history 1")
 	default:
 	}
