@@ -1,10 +1,78 @@
 # hackathon-labeler
 
 # LABELER
-A labeler for all kubectl, kustomize, and helm resources...  how does it work
-HACKME!!!
+A labeler for all kubectl, kustomize, and helm resources...  
 
-result - all resources installed via kubectl apply, kubectl -k, and helm install are labeled
+Challenge: When working with Kubernetes objects it is necessary to find objects that are part of the same collection. Labels and annotations are a good way to flag objects so that they can be operated on as a collection. For instance, for an nginx package it would be useful to label the deployment, service, service account, and configmap that comes along with it. You could simply just use a namespace as a collection identifier. But a namespace will not help you identify cluster-scoped objects (which includes a namespace where the deployment, service, service account, and configmap reside) as part of a collection.
+
+Common labels are used by Helm to identify objects that are part of the same collection. Most commonly used is:
+    app.kubernetes.io/part-of: <your collection name here>
+
+You set a label with:
+  For kubectl
+    kubectl label <object-type> <object-name> <label-key>=<label-value>
+
+  For Helm
+    helm install my-release my-chart --set labels.<label-key>=<label-value>
+
+You can then use kubectl to get all items that contain the label you specified
+    kubectl get all --selector=app.kubernetes.io/part-of=nginx
+
+You would be quick to point out that helm and kubectl all have a means of labeling objects during installation/create/apply. This is partly true, if a) the project offers a well-formed, best-practices helm chart, b) if you do not use 'kubectl apply -f', and c) if you do not use 'kubectl -k' (kustomize) to install the application
+
+Yes, for kubectl you can add labels to your source before applying with 'kubectl apply -f'. Yes, you can do the same for your helm source. And, yes, you can add labels to your kustomize object source files before applying with 'kubectl -k'. This is time-consuming work and requires you clone the source and manipulate it locally and possibly source control it for others to use. Imagine having to do this many times for different project source files. I am a platform engineer, and I can tell you that this is a tedious process. All it takes is a single upstream change/update and you need to read, edit, and store your version of the source files again.
+
+After hacking at this for some time, I decided to come up with a command that works kinda like grep. You can run grep against a file as input or run grep against a command as output (linux pipe command)
+
+    grep "apple" example.txt
+
+    or
+
+    echo "This is an example text with an apple" | grep "apple"
+
+Why not create a command that can do the same for labeling Kubernetes resources
+
+    labeler -l app.kubernetes.io/part-of=sample-value -k ~/.kube/config -c kind-kind /path/to/myapp
+
+    or
+
+    (helm install with --debug mode)
+    helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --debug | ./labeler -l app.kubernetes.io/part-of=sealed-secrets -k ~/.kube/config -c kind-kind
+
+    or
+
+    (helm install without --debug mode)
+    helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace |  ./labeler -l app.kubernetes.io/part-of=sealed-secrets -k ~/.kube/config -c kind-kind
+
+    or
+
+    (helm template run - no installation)   
+    helm --kube-context=kind-kind template sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --dry-run |  ./labeler -l app.kubernetes.io/part-of=sealed-secrets -k ~/.kube/config -c kind-kind
+
+    or
+
+    (helm --dry-run - no installation)
+    helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --dry-run | ./labeler -l app.kubernetes.io/part-of=sealed-secrets -k ~/.kube/config -c kind-kind
+
+    or
+    
+    (kubectl apply -f)
+    kubectl apply -f deployment.yml | ./labeler -l app.kubernetes.io/part-of=my-kubectl-app -k ~/.kube/config -c kind-kind
+
+    or
+    
+    (kustomize - 'kubectl -k')
+    kubectl -k kustomization.yml | ./labeler -l app.kubernetes.io/part-of=my-kustomize-app -k ~/.kube/config -c kind-kind
+
+
+The result, in all cases, would be output of the yaml used to create resources and then labeling with your desired label. If you are running in template or --dry-run where there is no 'apply' of the object definitions, then the label commands are furnished as output
+
+
+
+
+
+
+
 
 new to try:
     KUBECONFIG=~/.kube/config helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
@@ -18,7 +86,7 @@ new to try:
     helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --dry-run | ./labeler -l app.kubernetes.io/part-of=sample-value -k ~/.kube/config -c kind-kind; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
 
   template run (native yaml - but does not apply resources, so labeling may not work unless resource exist from a previous helm install - which is cool)
-    helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --dry-run | ./labeler -l app.kubernetes.io/part-of=sample-value -k ~/.kube/config -c kind-kind; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+    helm --kube-context=kind-kind template sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --dry-run | ./labeler -l app.kubernetes.io/part-of=sample-value -k ~/.kube/config -c kind-kind; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
 
   plain install (uses history hack)
     helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler -l app.kubernetes.io/part-of=sample-value -k ~/.kube/config -c kind-kind; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
