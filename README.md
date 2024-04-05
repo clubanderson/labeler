@@ -8,6 +8,7 @@ Common labels are used by Helm to identify objects that are part of the same col
     app.kubernetes.io/part-of: <your collection name here>
 
 You set a label with:
+  
   For kubectl
     
     kubectl label <object-type> <object-name> <label-key>=<label-value>
