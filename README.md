@@ -1,4 +1,4 @@
-![alt text](kube-labeler.jpg)
+<img src="kube-labeler.jpg" alt="drawing" width="20"/>
 # LABELER
 A labeler for all kubectl, kustomize, and helm resources  
 
