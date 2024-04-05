@@ -67,6 +67,8 @@ var flagsName = struct {
 	contextShort:    "c",
 }
 
+// need a new function to do labeling
+
 func (p ParamsStruct) detectInput(labelerRestConfig *rest.Config) error {
 	if isInputFromPipe() {
 		// if input is from a pipe, traverseinput the
