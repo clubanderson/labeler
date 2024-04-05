@@ -1,5 +1,3 @@
-# hackathon-labeler
-
 # LABELER
 A labeler for all kubectl, kustomize, and helm resources...  
 
