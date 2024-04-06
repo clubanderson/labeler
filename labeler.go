@@ -15,13 +15,16 @@ import (
 	"runtime"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery/cached/disk"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -31,12 +34,17 @@ import (
 )
 
 type ParamsStruct struct {
-	homeDir string
-	path    string
+	homeDir              string
+	path                 string
+	debug                bool
+	labelerClientSet     *kubernetes.Clientset
+	labelerRestConfig    *rest.Config
+	labelerDynamicClient *dynamic.DynamicClient
 }
 
 var flags struct {
 	filepath   string
+	debug      bool
 	verbose    bool
 	label      string
 	kubeconfig string
@@ -48,6 +56,8 @@ var flagsName = struct {
 	fileShort       string
 	verbose         string
 	verboseShort    string
+	debug           string
+	debugShort      string
 	label           string
 	labelShort      string
 	kubeconfig      string
@@ -59,6 +69,8 @@ var flagsName = struct {
 	fileShort:       "f",
 	verbose:         "verbose",
 	verboseShort:    "v",
+	debug:           "debug",
+	debugShort:      "d",
 	label:           "label",
 	labelShort:      "l",
 	kubeconfig:      "kubeconfig",
@@ -69,9 +81,11 @@ var flagsName = struct {
 
 // need a new function to do labeling
 
-func (p ParamsStruct) detectInput(labelerRestConfig *rest.Config) error {
+func (p ParamsStruct) detectInput() error {
+	var yamlData interface{}
+
 	if isInputFromPipe() {
-		// if input is from a pipe, traverseinput the
+		// if input is from a pipe, traverseinput and label the
 		// content of stdin
 		log.Println("data is from pipe")
 		// try to use output - might be yaml from --debug
@@ -92,8 +106,8 @@ func (p ParamsStruct) detectInput(labelerRestConfig *rest.Config) error {
 				continue // Skip non-YAML lines
 			}
 			break
-			input = append(input, scanner.Bytes()...)
-			input = append(input, '\n') // Append newline to separate lines
+			// input = append(input, scanner.Bytes()...)
+			// input = append(input, '\n') // Append newline to separate lines
 		}
 
 		for scanner.Scan() {
@@ -108,7 +122,6 @@ func (p ParamsStruct) detectInput(labelerRestConfig *rest.Config) error {
 		}
 
 		// Try parsing the input as YAML
-		var yamlData interface{}
 		if err := yaml.Unmarshal(input, &yamlData); err != nil {
 			log.Printf("warning: no YAML input was detected %v", err)
 		}
@@ -117,7 +130,7 @@ func (p ParamsStruct) detectInput(labelerRestConfig *rest.Config) error {
 		if yamlData != nil {
 			log.Println("YAML data detected in stdin")
 			// Do something with the YAML data received - don't need to use history hack in this case - we got valid YAML input from template, --dry-run, or --debug
-			err := traverseInput(strings.NewReader(string(input)), os.Stdout)
+			err := p.traverseInputAndLabel(strings.NewReader(string(input)), os.Stdout)
 			if err != nil {
 				log.Println("Error (traverseinput):", err)
 				return err
@@ -136,15 +149,6 @@ func (p ParamsStruct) detectInput(labelerRestConfig *rest.Config) error {
 		}
 		defer file.Close()
 		return p.helmOrKubectl(file, os.Stdout)
-	}
-
-	mapper, _ := p.createCachedDiscoveryClient(*labelerRestConfig)
-
-	// gvk (group, version, kind) should come out of traverseInput. you will use yaml decoding to find the '.kind', '.apiVersion', and '.metadata.name' from all yaml records. HINT: apiVersion is the group/version (gv) in gvk, and kind is the kind (k) in gvk
-	log.Printf("\n\nlet's label some objects!\n\n")
-	err := p.setLabel("output", "group", "version", "kind", "objectName", mapper)
-	if err != nil {
-		// HACKME!!!
 	}
 
 	return nil
@@ -180,7 +184,7 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 	originalCommand, err := p.getOriginalCommandFromHistory()
 	if err != nil {
 		log.Println("Error (get history):", err)
-		os.Exit(1)
+		// os.Exit(1)
 	}
 
 	log.Printf("Original command: %q\n", originalCommand)
@@ -201,7 +205,7 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 			log.Println("Error (run helm):", err)
 			os.Exit(1)
 		}
-		err = traverseInput(strings.NewReader(string(output)), os.Stdout)
+		err = p.traverseInputAndLabel(strings.NewReader(string(output)), os.Stdout)
 		if err != nil {
 			log.Println("Error (to traverseInput):", err)
 			return err
@@ -218,7 +222,7 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 			// this is plain kubectl
 			// HACKME!!!!
 		}
-		traverseInput(r, w)
+		p.traverseInputAndLabel(r, w)
 		if err != nil {
 			log.Println("Error (traverseinput):", err)
 			os.Exit(1)
@@ -239,42 +243,93 @@ func logOut(v ...interface{}) {
 }
 func logNoop(v ...interface{}) {}
 
-func traverseInput(r io.Reader, w io.Writer) error {
+func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
+	mapper, _ := p.createCachedDiscoveryClient(*p.labelerRestConfig)
+
+	var linesOfOutput []string
+
 	scanner := bufio.NewScanner(bufio.NewReader(r))
 	for scanner.Scan() {
-		line := scanner.Text()
-		// HACKME!!! - this string comparison is wrong - this should use yaml decoding to find the '.kind', '.apiVersion', and '.metadata.name' from all yaml records
-		if strings.HasPrefix(line, "kind:") || strings.HasPrefix(line, "apiVersion:") || strings.HasPrefix(line, "  name:") {
-			_, err := fmt.Fprintf(w, line+"\n")
-			if err != nil {
-				return err
+		linesOfOutput = append(linesOfOutput, scanner.Text())
+	}
+	allLines := strings.Join(linesOfOutput, "\n")
+
+	if i := strings.Index(allLines, "---\n"); i != -1 {
+		// Slice the concatenated string from the index of "---\n"
+		allLines = allLines[i:]
+	}
+
+	// Convert the sliced string back to a string slice
+	linesOfOutput = strings.Split(allLines, "\n")
+
+	decoder := yaml.NewDecoder(strings.NewReader(allLines))
+	for {
+		var obj map[string]interface{}
+		err := decoder.Decode(&obj)
+		if err != nil {
+			if err.Error() != "EOF" && !strings.Contains(err.Error(), "did not find expected alphabetic or numeric character") {
+				log.Printf("      🔴 decoding error: %v\n%v\n", err, obj)
+			}
+			break // Reached end of file or error
+		}
+
+		// convert map to YAML byte representation
+		yamlBytes, err := yaml.Marshal(obj)
+		if err != nil {
+			log.Printf("Error marshaling YAML: %v\n", err)
+			continue
+		}
+		runtimeObj, err := DecodeYAML(yamlBytes)
+		if err != nil {
+			// log.Printf("      🔴 error decoding yaml: %v\n", err)
+			continue
+		}
+		gvk := runtimeObj.GroupVersionKind()
+		_ = gvk
+		// log.Printf("G: %v, V: %v, K: %v, Name: %v", gvk.Group, gvk.Version, gvk.Kind, runtimeObj.GetName())
+
+		gvr, err := p.getGVRFromGVK(mapper, gvk)
+		if err != nil {
+			if p.debug {
+				log.Printf("          🟡 error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
 			}
 		}
+
+		err = p.setLabel(runtimeObj.GetNamespace(), runtimeObj.GetName(), gvr)
+		if err != nil {
+			// 	objName := strings.ReplaceAll(runtimeObj.GetName(), "release-name-", starHelmChartReleaseName+"-")
+			// 	p.setLabel(namespace, objName, gvr)
+		}
+
 	}
 	return nil
 }
 
-func (p ParamsStruct) setLabel(output, group, version, kind, objectName string, mapper *restmapper.DeferredDiscoveryRESTMapper) error {
-	// decode output...
-	//   decode 'output'  to find each object definition (separated by '---' but do not do string split here - there is a better way!)
+// // p.labelFromKustomizeRunOutput(listOfObjects, contextName, starNs, starLabel)
+// func (p ParamsStruct) labelFromKustomizeRunOutput(listOfObjects []byte, contextName, starNs, starLabel string) {
+// 	re := regexp.MustCompile(`([a-zA-Z0-9.-]+\/[a-zA-Z0-9.-]+) ([a-zA-Z0-9.-]+)`)
+// 	matches := re.FindAllStringSubmatch(string(listOfObjects), -1)
 
-	// yamlBytes := marshall(obj)...
-
-	// runtimeObj := decodeYaml(yamlBytes)...
-
-	// gvk := runtimeObj.GroupVersionKind()
-
-	// var gvr schema.GroupVersionResource
-	// gvr, err = getGVRFromGVK(mapper, gvk)
-	// if err != nil {
-	// 	if p.debug {
-	// 		log.Printf("          🟡 error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
-	// 	}
-	// }
-
-	// now that you have gvr, run 'kubectl label %group%/%version%/%resource% %objectName% app.kubernetes.io/part-of=%value%'
-	return nil
-}
+// 	// iterate over matches and extract group version kind and object name
+// 	for _, match := range matches {
+// 		// the first capture group contains the group version kind and object name
+// 		groupVersionKindObjectName := match[1]
+// 		// split the string to get group version kind and object name
+// 		parts := strings.Split(groupVersionKindObjectName, "/")
+// 		gvkParts := strings.Split(parts[0], ".")
+// 		kind := gvkParts[0]
+// 		group := gvkParts[1:]
+// 		objectName := parts[1]
+// 		log.Printf("group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
+// 		if starLabel != "{{values.no-label}}" {
+// 			labelCmd := []string{"kubectl", "--context=" + contextName, "-n", starNs, "label", kind + "/" + objectName, "app.kubernetes.io/part-of=" + starLabel}
+// 			_, err := p.runCmd(labelCmd, true)
+// 			if err != nil {
+// 				log.Printf("label did not apply: %v", err)
+// 			}
+// 		}
+// 	}
+// }
 
 func getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
 	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
@@ -292,28 +347,7 @@ func getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.Gr
 	return gvr, nil
 }
 
-func (p ParamsStruct) sampleSetLabel(ocDynamicClientCoreOrWds dynamic.Interface, namespace, objectName string, gvr schema.GroupVersionResource) error {
-	// don't label a bindingpolicy object - it is not going to be deployed to a remote
-	if gvr.Resource == "bindingpolicies" {
-		return nil
-	}
-	// don't label openshift namespaces as part-of anything - we do not want to manage or delete these namespaces
-	if strings.HasPrefix(objectName, "openshift-") && gvr.Resource == "namespaces" {
-		log.Println("          ℹ️ not labeling this namespace - it is part of openshift operations\n          NOTE: if you want to synchronize this namespace object, you must select it explicitly in a bindingpolicy")
-		return nil
-	}
-	if strings.HasPrefix(objectName, "kube-") && gvr.Resource == "namespaces" {
-		log.Println("          ℹ️ not labeling this namespace - it is part of kubernetes operations\n          NOTE: if you want to synchronize this namespace object, you must select it explicitly in a bindingpolicy")
-		return nil
-	}
-	if gvr.Resource == "customresourcedefinitions" && (objectName == "operatorgroups.operators.coreos.com" || objectName == "subscriptions.operators.coreos.com") {
-		log.Printf("          ℹ️ not labeling %v - it is part of openshift operations\n", objectName)
-		return nil
-	}
-	if gvr.Resource == "sealedsecrets" {
-		log.Printf("          ℹ️ not labeling %v - it is a sealed secret\n", objectName)
-		return nil
-	}
+func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVersionResource) error {
 
 	labelSlice := strings.Split(flags.label, "=")
 	labelKey, labelVal := labelSlice[0], labelSlice[1]
@@ -332,14 +366,17 @@ func (p ParamsStruct) sampleSetLabel(ocDynamicClientCoreOrWds dynamic.Interface,
 	}
 
 	if namespace == "" {
-		_, err = ocDynamicClientCoreOrWds.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
+		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 	} else {
-		_, err = ocDynamicClientCoreOrWds.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
+
+		_, err = p.labelerDynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 	}
+
 	if err != nil {
 		log.Printf("          🟡 failed to set labels on object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
 		return err
 	}
+
 	log.Printf("          🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, labelKey, labelVal)
 	return nil
 }
@@ -419,8 +456,10 @@ func extractCmdFromHistory(historyText string) (string, error) {
 	// Find the index of the first semicolon
 	helmTextIndex := strings.Index(historyText, "helm")
 	if helmTextIndex == -1 {
-		return "", fmt.Errorf("helm not found: %v", historyText)
+		log.Printf("helm not found: %v", historyText)
 	}
+
+	log.Printf("trimmedCommand: %v", historyText)
 
 	// trim everything before the semicolon and trim any leading or trailing whitespace
 	trimmedCommand := strings.TrimSpace(historyText[helmTextIndex:])
@@ -437,7 +476,7 @@ func extractCmdFromHistory(historyText string) (string, error) {
 
 }
 
-func (p ParamsStruct) switchContext(contextName string) (*kubernetes.Clientset, *rest.Config, dynamic.Interface) {
+func (p ParamsStruct) switchContext() (*kubernetes.Clientset, *rest.Config, *dynamic.DynamicClient) {
 	var err error
 	var kubeConfigPath string
 
@@ -456,12 +495,12 @@ func (p ParamsStruct) switchContext(contextName string) (*kubernetes.Clientset, 
 
 	if flags.context != "" {
 		// check if the specified context exists in the kubeconfig
-		if _, exists := apiConfig.Contexts[contextName]; !exists {
-			log.Printf("Context %q does not exist in the kubeconfig\n", contextName)
+		if _, exists := apiConfig.Contexts[flags.context]; !exists {
+			log.Printf("Context %q does not exist in the kubeconfig\n", flags.context)
 			os.Exit(1)
 		}
 		// switch the current context in the kubeconfig
-		apiConfig.CurrentContext = contextName
+		apiConfig.CurrentContext = flags.context
 	}
 
 	// create a new clientset with the updated config
@@ -496,6 +535,42 @@ func (p ParamsStruct) createCachedDiscoveryClient(restConfigCoreOrWds rest.Confi
 	return mapper, nil
 }
 
+func (p ParamsStruct) useContext(contextName string) {
+	setContext := []string{"config", "use-context", contextName}
+	_, err := p.runCmd("kubectl", setContext)
+	if err != nil {
+		log.Printf("   🔴 error setting kubeconfig's current context: %v\n", err)
+	} else {
+		log.Printf("   📍 kubeconfig's current context set to %v\n", contextName)
+	}
+}
+
+func (p ParamsStruct) getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapping: %v", err)
+	}
+
+	gvr := mapping.Resource
+
+	// Check if the resource is found
+	if gvr.Resource == "" {
+		return schema.GroupVersionResource{}, fmt.Errorf("resource name not found for kind %s/%s %s", gvk.Group, gvk.Version, gvk.Kind)
+	}
+
+	return gvr, nil
+}
+
+func DecodeYAML(yamlBytes []byte) (*unstructured.Unstructured, error) {
+	obj := &unstructured.Unstructured{}
+	dec := k8sYAML.NewYAMLOrJSONDecoder(bytes.NewReader(yamlBytes), 4096)
+	err := dec.Decode(obj)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 func main() {
 	log.SetFlags(0) // remove the date and time stamp from log.print output
 	var p ParamsStruct
@@ -517,10 +592,9 @@ func main() {
 			if flags.verbose {
 				print = logOut
 			}
-			labelerClientSet, labelerRestConfig, labelerDynamicClient := p.switchContext(flags.context)
-			_, _, _ = labelerClientSet, labelerRestConfig, labelerDynamicClient
+			p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
 
-			return p.detectInput(labelerRestConfig)
+			return p.detectInput()
 		},
 	}
 
@@ -529,6 +603,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&flags.kubeconfig, flagsName.kubeconfig, flagsName.kubeconfigShort, "", "kubeconfig to use")
 	rootCmd.PersistentFlags().StringVarP(&flags.context, flagsName.context, flagsName.contextShort, "", "context to use")
 	rootCmd.PersistentFlags().BoolVarP(&flags.verbose, flagsName.verbose, flagsName.verboseShort, false, "log verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&flags.debug, flagsName.debug, flagsName.debugShort, false, "debug mode")
 
 	err = rootCmd.Execute()
 	if err != nil {

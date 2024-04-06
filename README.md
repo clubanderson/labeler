@@ -67,7 +67,7 @@ Why not create a command that can do the same for labeling Kubernetes resources
   or
     
     (kustomize - 'kubectl -k')
-    kubectl -k kustomization.yml | ./labeler -l app.kubernetes.io/part-of=my-kustomize-app -k ~/.kube/config -c kind-kind
+    kubectl apply -k kustomization.yml | ./labeler -l app.kubernetes.io/part-of=my-kustomize-app -k ~/.kube/config -c kind-kind
 
 
 The result, in all cases, would be output of the yaml used to create resources and then labeling with your desired label. If you are running in template or --dry-run where there is no 'apply' of the object definitions, then the label commands are furnished as output
@@ -107,7 +107,7 @@ should work like this...
         kubectl --context=kind-kind apply -f a.yaml-file.yml | ./labeler app.kubernetes.io/part-of=another-sample-value
     
     kustomize
-        kubectl --context=kind-kind -k some/path/with/kustomization.yml | ./labeler app.kubernetes.io/part-of=sample-value
+        kubectl --context=kind-kind apply -k some/path/with/kustomization.yml | ./labeler app.kubernetes.io/part-of=sample-value
 
     helm (local chart)
         helm --kube-context=kind-kind install my-release-name ./mychart | ./labeler app.kubernetes.io/part-of=my-release-value
