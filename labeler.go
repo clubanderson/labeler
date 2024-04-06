@@ -181,23 +181,15 @@ func getFile() (*os.File, error) {
 }
 
 func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
-	originalCommand, err := p.getOriginalCommandFromHistory()
+	originalCommand, cmdFound, err := p.getOriginalCommandFromHistory()
 	if err != nil {
 		log.Println("Error (get history):", err)
 		// os.Exit(1)
 	}
 
 	log.Printf("Original command: %q\n", originalCommand)
-	isHelm, isKubectl, isKustomize := false, false, false
 
-	if strings.HasPrefix(originalCommand, "helm") {
-		log.Printf("your running helm\n")
-		isHelm = true
-	} else if strings.HasPrefix(originalCommand, "kubectl") {
-		log.Printf("your running kubectl\n")
-	}
-
-	if isHelm {
+	if cmdFound == "helm" {
 		modifiedCommand := strings.Replace(originalCommand, "install", "template", 1)
 		modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
 		output, err := p.runCmd("helm", modifiedCommandComponents)
@@ -210,18 +202,19 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 			log.Println("Error (to traverseInput):", err)
 			return err
 		}
-	} else {
-		if strings.Contains(originalCommand, "-k") {
-			isKustomize = true
-			_ = isKustomize
-			// this is kustomize - not sure if there is a reason to treat this differently then regular kubectl
-			// HACKME!!!!
-		} else {
-			isKubectl = true
-			_ = isKubectl
-			// this is plain kubectl
-			// HACKME!!!!
+	} else if cmdFound == "kubectl" {
+		// this is plain kubectl
+		// HACKME!!!! - get the yaml by traversing the files given to 'apply -f' and then label them
+		// p.functionToGetYAMLfromKubectlFiles(originalCmd)
+		p.traverseInputAndLabel(r, w)
+		if err != nil {
+			log.Println("Error (traverseinput):", err)
+			os.Exit(1)
 		}
+	} else {
+		// this is plain kubectl
+		// HACKME!!!! - get the yaml by traversing the files given to 'apply -k' and then label them
+		// p.functionToGetYAMLfromKustomizeFiles(originalCmd)
 		p.traverseInputAndLabel(r, w)
 		if err != nil {
 			log.Println("Error (traverseinput):", err)
@@ -448,31 +441,53 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, error) {
 		return "", err
 	}
 
-	originalCmd, err := extractCmdFromHistory(string(outputBuf.Bytes()))
-	return originalCmd, err
+	originalCmd, cmdFound, err := extractCmdFromHistory(string(outputBuf.Bytes()))
+	log.Printf("command found: %q\n", cmdFound)
+	return originalCmd, cmdFound, err
 }
 
-func extractCmdFromHistory(historyText string) (string, error) {
+func extractCmdFromHistory(historyText string) (string, string, error) {
 	// Find the index of the first semicolon
+	cmdFound := "helm"
 	helmTextIndex := strings.Index(historyText, "helm")
 	if helmTextIndex == -1 {
-		log.Printf("helm not found: %v", historyText)
+		// log.Printf("helm not found: %v", historyText)
+	} else {
+		cmdFound = "helm"
 	}
 
-	log.Printf("trimmedCommand: %v", historyText)
-
 	// trim everything before the semicolon and trim any leading or trailing whitespace
-	trimmedCommand := strings.TrimSpace(historyText[helmTextIndex:])
+	trimmedCommand := strings.TrimSpace(historyText)
 
 	// find the index of the first pipe character in the trimmed command
-	pipeIndex := strings.Index(trimmedCommand, "|")
-	if pipeIndex == -1 {
-		return string(trimmedCommand), nil
+	pipeIdx := strings.Index(trimmedCommand, "|")
+	if pipeIdx == -1 {
+		return string(trimmedCommand), "", nil
 		// return "", log.Errorf("pipe character not found")
+	} else {
+		trimmedCommand = trimmedCommand[:pipeIdx]
+	}
+
+	// find the index of the first 'k' character in the trimmed command
+	kubectlIdx := strings.Index(trimmedCommand, "k")
+	if kubectlIdx == -1 {
+		return string(trimmedCommand), cmdFound, nil
+		// return "", log.Errorf("kubectl not found")
+	} else {
+		trimmedCommand = trimmedCommand[kubectlIdx:]
+		cmdFound = "kubectl"
+	}
+
+	// find the index of the first 'k' character in the trimmed command
+	if !strings.Contains(trimmedCommand, "-k") {
+		return string(trimmedCommand), cmdFound, nil
+		// return "", log.Errorf("kustomize not found")
+	} else {
+		cmdFound = "kustomize"
 	}
 
 	// trim everything after the pipe character and trim any leading or trailing whitespace
-	return strings.TrimSpace(trimmedCommand[:pipeIndex]), nil
+	return strings.TrimSpace(trimmedCommand), cmdFound, nil
 
 }
 
