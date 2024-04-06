@@ -197,6 +197,7 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 			log.Println("Error (run helm):", err)
 			os.Exit(1)
 		}
+
 		err = p.traverseInputAndLabel(strings.NewReader(string(output)), os.Stdout)
 		if err != nil {
 			log.Println("Error (to traverseInput):", err)
@@ -399,7 +400,7 @@ func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) 
 	return outputBuf.Bytes(), nil
 }
 
-func (p ParamsStruct) getOriginalCommandFromHistory() (string, error) {
+func (p ParamsStruct) getOriginalCommandFromHistory() (string, string, error) {
 	// TODO: this may not always be zsh, could be bash - should check if bash_history or zsh_history has "labeler" in it - that would tell us we have the right history file
 
 	//placeholder
@@ -409,7 +410,7 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, error) {
 	case "darwin":
 		// if mac
 		log.Println("mac")
-		cmd = exec.Command("bash", "-c", "history -r ~/.zsh_history; history 1")
+		cmd = exec.Command("bash", "-c", "history -a; history -r ~/.zsh_history; history 1")
 	case "linux":
 		log.Println("linux")
 		// if linux (tested on ubuntu)
@@ -418,7 +419,7 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, error) {
 		//     source ~/.bashrc
 		// test with:
 		//     history -s "helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace" > exec | ./labeler app.kubernetes.io/part-of=sample-value
-		cmd = exec.Command("bash", "-c", "history -r ~/.bash_history; history 3")
+		cmd = exec.Command("bash", "-c", "history -a; history -r ~/.bash_history; history 3")
 	default:
 	}
 
@@ -432,13 +433,13 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, error) {
 	err := cmd.Start()
 	if err != nil {
 		log.Println("   🔴 error starting command:", err)
-		return "", err
+		return "", "", err
 	}
 
 	err = cmd.Wait()
 	if err != nil {
 		log.Println("   🔴 error waiting for command to complete:", err)
-		return "", err
+		return "", "", err
 	}
 
 	originalCmd, cmdFound, err := extractCmdFromHistory(string(outputBuf.Bytes()))
