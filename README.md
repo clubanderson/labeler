@@ -310,7 +310,7 @@ run kl with any kubectl command line arguments, and labeler will label all appli
 
 # Labeler with a sample KubeStellar BindingPolicy as output
 
-    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --create-bp       kind-kind/default ⎈ 
+    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --create-bp
       service/my-app-service already has label app.kubernetes.io/part-of=sample
       deployment.apps/my-app-deployment already has label app.kubernetes.io/part-of=sample
 
