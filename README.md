@@ -256,4 +256,64 @@ run kl with any kubectl command line arguments, and labeler will label all appli
     service/my-app-service unchanged
     deployment.apps/my-app-deployment unchanged
 
-run hl with any helm command line arguments, and labeler will label all installed resources, or give output on how to do so
+  run hl with any helm command line arguments, and labeler will label all installed resources, or give output on how to do so
+
+  helm (template)
+
+    hl --kube-context=kind-kind template sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --dry-run; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+
+    invoked as alias: 
+
+    The following resources do not exist and can be labeled at a later time:
+
+    kubectl label serviceaccounts sealed-secrets app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label clusterroles secrets-unsealer app.kubernetes.io/part-of=sample-app
+    kubectl label clusterrolebindings sealed-secrets app.kubernetes.io/part-of=sample-app
+    kubectl label roles sealed-secrets-key-admin app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label roles sealed-secrets-service-proxier app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label rolebindings sealed-secrets-key-admin app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label rolebindings sealed-secrets-service-proxier app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label services sealed-secrets app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label services sealed-secrets-metrics app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label deployments sealed-secrets app.kubernetes.io/part-of=sample-app -n sealed-secrets
+
+    Error: uninstall: Release not loaded: sealed-secrets: release: not found
+
+  helm (install with dry-run)
+
+    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --dry-run; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+
+    invoked as alias: 
+
+    The following resources do not exist and can be labeled at a later time:
+
+    kubectl label serviceaccounts sealed-secrets app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label clusterroles secrets-unsealer app.kubernetes.io/part-of=sample-app
+    kubectl label clusterrolebindings sealed-secrets app.kubernetes.io/part-of=sample-app
+    kubectl label roles sealed-secrets-key-admin app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label roles sealed-secrets-service-proxier app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label rolebindings sealed-secrets-key-admin app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label rolebindings sealed-secrets-service-proxier app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label services sealed-secrets app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label services sealed-secrets-metrics app.kubernetes.io/part-of=sample-app -n sealed-secrets
+    kubectl label deployments sealed-secrets app.kubernetes.io/part-of=sample-app -n sealed-secrets
+
+    Error: uninstall: Release not loaded: sealed-secrets: release: not found
+
+  helm (install)
+
+    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+
+    invoked as alias: 
+          🏷️ labeled object /v1/serviceaccounts "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object rbac.authorization.k8s.io/v1/clusterroles "secrets-unsealer" in namespace "" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object rbac.authorization.k8s.io/v1/clusterrolebindings "sealed-secrets" in namespace "" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object rbac.authorization.k8s.io/v1/roles "sealed-secrets-key-admin" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object rbac.authorization.k8s.io/v1/roles "sealed-secrets-service-proxier" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object rbac.authorization.k8s.io/v1/rolebindings "sealed-secrets-key-admin" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object rbac.authorization.k8s.io/v1/rolebindings "sealed-secrets-service-proxier" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object /v1/services "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object /v1/services "sealed-secrets-metrics" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+          🏷️ labeled object apps/v1/deployments "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+
+
