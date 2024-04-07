@@ -1,9 +1,9 @@
-­’kV¨RÐ‡¡1}WÜÞñÀîb”²8óJÀO8/HTTP/2.0 200 OK
+R\å[,"j€çlMì\™ÂZ¬òª’«ÍÜ$èæ»;™u}HTTP/2.0 200 OK
 Connection: close
-Audit-Id: a7e5be14-acb2-4600-9345-b22372ab32fb
+Audit-Id: a8a52d93-ca31-4a89-814e-ae531c3e9ed0
 Cache-Control: public
 Content-Type: application/json;g=apidiscovery.k8s.io;v=v2beta1;as=APIGroupDiscoveryList
-Date: Sun, 07 Apr 2024 01:23:10 GMT
+Date: Sun, 07 Apr 2024 06:16:55 GMT
 Etag: "7E2E4FBD8CDC884130EBFEF64757F6BC507A8EA6A2EA8F94E05F1B6F207B4E183C63D6D6EA5513FDDC10FC16233248F933DC787C288493D52745A3FAFD68CCD8"
 Vary: Accept
 X-From-Cache: 1

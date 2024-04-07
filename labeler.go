@@ -35,6 +35,12 @@ type ParamsStruct struct {
 	labelerClientSet     *kubernetes.Clientset
 	labelerRestConfig    *rest.Config
 	labelerDynamicClient *dynamic.DynamicClient
+	labelKey             string
+	labelVal             string
+	namespace            string
+	kubeconfig           string
+	context              string
+	overwrite            bool
 }
 
 type resultsStruct struct {
@@ -80,7 +86,85 @@ var flagsName = struct {
 	contextShort:    "c",
 }
 
-// need a new function to do labeling
+func (p ParamsStruct) aliasRun(args []string) error {
+	log.Println("args:", args)
+	args = os.Args[1:]
+
+	p.overwrite = false
+	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
+		for i := 0; i < len(args); i++ {
+			// log.Printf("arg: %v\n", args[i])
+			if strings.Contains(args[i], "--context=") {
+				p.context = strings.Split(args[i], "=")[1]
+			} else if args[i] == "-n" && i < len(args)-1 {
+				p.namespace = args[i+1]
+			} else if strings.Contains(args[i], "--namespace=") {
+				p.namespace = strings.Split(args[i], "=")[1]
+			} else if strings.Contains(args[i], "--kubeconfig=") {
+				p.kubeconfig = strings.Split(args[i], "=")[1]
+			} else if args[i] == "--overwrite" {
+				p.overwrite = true
+			}
+		}
+
+		for i := 0; i < len(args); i++ {
+			if args[i] == "-l" && i < len(args)-1 {
+				p.labelKey = strings.Split(args[i+1], "=")[0]
+				p.labelVal = strings.Split(args[i+1], "=")[1]
+				args = append(args[:i], args[i+2:]...)
+			}
+		}
+		// log.Printf("args: %v\n", args)
+		// Run the command with the parsed flags
+		cmd := exec.Command(args[0], args[1:]...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Error: %v, %v", err, string(out))
+			os.Exit(1)
+		}
+
+		// Format the output
+		output := strings.TrimSpace(string(out))
+		lines := strings.Split(output, "\n")
+		// log.Println("lines:", lines)
+		p.labelFromKubectlRunOutput(lines)
+		// Print the formatted output
+		fmt.Println(output)
+	}
+	return nil
+}
+
+// Stub function for traversing each line of output and applying labels if matched by regex
+func traverseLine(line, namespace, context, kubeconfig string) {
+	// Implement your traversal logic here
+	// Example: Apply label if the line contains "pattern"
+	pattern := "pattern" // Change this to your desired regex pattern
+	matched, err := regexp.MatchString(pattern, line)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	if matched {
+		// Prepare kubectl command with namespace, context, and kubeconfig if provided
+		cmdArgs := []string{"label", "apply", line, "some-label=value"}
+		if namespace != "" {
+			cmdArgs = append(cmdArgs, "--namespace="+namespace)
+		}
+		if context != "" {
+			cmdArgs = append(cmdArgs, "--context="+context)
+		}
+		if kubeconfig != "" {
+			cmdArgs = append(cmdArgs, "--kubeconfig="+kubeconfig)
+		}
+
+		// Run kubectl label command
+		cmd := exec.Command("kubectl", cmdArgs...)
+		if err := cmd.Run(); err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+	}
+}
 
 func (p ParamsStruct) detectInput() error {
 	var yamlData interface{}
@@ -165,16 +249,6 @@ func (p ParamsStruct) detectInput() error {
 
 }
 
-func isYAML(line string) bool {
-	// Check if the line starts with "---" or starts with whitespace followed by "-"
-	return strings.HasPrefix(strings.TrimSpace(line), "-") || strings.HasPrefix(line, "---")
-}
-
-func isInputFromPipe() bool {
-	fileInfo, _ := os.Stdin.Stat()
-	return fileInfo.Mode()&os.ModeCharDevice == 0
-}
-
 func getFile() (*os.File, error) {
 	if flags.filepath == "" {
 		return nil, errors.New("please input a file")
@@ -221,48 +295,6 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 		p.labelFromKubectlRunOutput(input)
 	}
 	return nil
-}
-
-func (p ParamsStruct) functionToGetYAMLfromKustomizeFiles(originalCmd string) error {
-	// the kind and object name is output from kustomize... how do we get the resource name... mapper to the rescue
-	// this might work without mapping... lets try...
-
-	mapper, _ := p.createCachedDiscoveryClient(*p.labelerRestConfig)
-	_ = mapper
-	gvk := schema.GroupVersionKind{
-		Group:   "",
-		Version: "",
-		Kind:    "",
-	}
-	_ = gvk
-	// resourceList, _ := mapper.ServerPreferredResources()
-	// _ = resourceList
-
-	// for _, resource := range resourceList {
-	// 	// log.Println(resource)
-	// 	for _, apiResource := range resource.APIResources {
-	// 		// log.Printf("Group: %s, Version: %s, Kind: %s, Resource: %s\n", apiResource.Group, apiResource.Version, apiResource.Kind, apiResource.Name)
-	// 		if apiResource.Name == rtype {
-	// 			groupVersion := strings.Split(resource.GroupVersion, "/")
-	// 			if len(groupVersion) == 2 {
-	// 				gvr = schema.GroupVersionResource{
-	// 					Group:    groupVersion[0],
-	// 					Version:  groupVersion[1],
-	// 					Resource: apiResource.Name,
-	// 				}
-	// 			} else {
-	// 				gvr = schema.GroupVersionResource{
-	// 					Group:    "",
-	// 					Version:  groupVersion[0],
-	// 					Resource: apiResource.Name,
-	// 				}
-	// 			}
-	// 			return gvr, apiResource.Namespaced, nil
-	// 		}
-	// 	}
-	// }
-	return nil
-	// return gvr, false, fmt.Errorf("resource kind not found for resource type %v", rtype)
 }
 
 func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
@@ -328,18 +360,23 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 
 func (p ParamsStruct) labelFromKubectlRunOutput(input []string) {
 	allLines := strings.Join(input, "\n")
+	// log.Printf("allLines: %v\n", allLines)
 
 	re := regexp.MustCompile(`([a-zA-Z0-9.-]+\/[a-zA-Z0-9.-]+) ([a-zA-Z0-9.-]+)`)
 	matches := re.FindAllStringSubmatch(allLines, -1)
 
-	namespace := "default" // this needs to be the value given to kubectl - if empty, then it is default
+	namespace := p.namespace
+	if namespace == "" {
+		namespace = "default" // this needs to be the value given to kubectl - if empty, then it is default
+	}
 
-	if flags.label == "" {
+	if flags.label == "" && p.labelKey == "" {
 		log.Println("No label provided")
 		return
 	}
-	labelSlice := strings.Split(flags.label, "=")
-	labelKey, labelVal := labelSlice[0], labelSlice[1]
+	if flags.label != "" {
+		p.labelKey, p.labelVal = strings.Split(flags.label, "=")[0], strings.Split(flags.label, "=")[1]
+	}
 
 	if len(matches) == 0 {
 		log.Println("No resources found to label")
@@ -359,11 +396,26 @@ func (p ParamsStruct) labelFromKubectlRunOutput(input []string) {
 		// group := gvkParts[1:]
 		objectName := parts[1]
 		// log.Printf("group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
+		labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal}
 		if flags.context != "" {
-			labelCmd = []string{"--context=" + flags.context, "-n", namespace, "label", kind + "/" + objectName, labelKey + "=" + labelVal, "--overwrite"}
-		} else {
-			labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, labelKey + "=" + labelVal, "--overwrite"}
+			labelCmd = append(labelCmd, "--context="+flags.context)
+			// labelCmd = []string{"--context=" + flags.context, "-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal, "--overwrite"}
 		}
+		if p.overwrite {
+			labelCmd = append(labelCmd, "--overwrite")
+		}
+		if p.context != "" {
+			labelCmd = append(labelCmd, "--context="+p.context)
+		}
+		if p.kubeconfig != "" {
+			labelCmd = append(labelCmd, "--kubeconfig="+p.kubeconfig)
+		}
+
+		log.Printf("labelCmd: %v\n", labelCmd)
+
+		// 	} else {
+		// 	labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal, "--overwrite"}
+		// }
 		output, err := p.runCmd("kubectl", labelCmd)
 		if err != nil {
 			log.Printf("label did not apply due to error: %v", err)
@@ -513,37 +565,74 @@ func main() {
 	}
 	p.homeDir = currentUser.HomeDir
 	p.path = os.Getenv("PATH")
+	if !isInputFromPipe() {
+		// Capture unknown flags
+		// var unknownFlags []string
+		// for i := 1; i < len(os.Args); i++ {
+		// 	if os.Args[i][0] == '-' && len(os.Args[i]) > 1 && os.Args[i][1] != '-' {
+		// 		if i+1 > len(os.Args) {
+		// 			if os.Args[i+1][0] == '-' {
+		// 				unknownFlags = append(unknownFlags, os.Args[i]+" "+os.Args[i+1])
+		// 				// log.Printf("flag: %v\n", os.Args[i]+" "+os.Args[i+1])
+		// 			}
 
-	var rootCmd = &cobra.Command{
-		Use:   "labeler",
-		Short: "label all kubernetes resources with provided key/value pair",
-		Long:  `Utility that automates the labeling of resources output from kubectl, kustomize, and helm`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if flags.label == "" {
-				log.Println("No label provided")
-				os.Exit(1)
+		// 		} else {
+		// 			unknownFlags = append(unknownFlags, os.Args[i])
+		// 			// log.Printf("flag: %v\n", os.Args[i])
+		// 		}
+		// 	}
+		// }
+
+		args := os.Args[1:]
+		if len(args) > 0 {
+			if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
+				log.Println("invoked as alias\n")
+				p.aliasRun(args)
 			}
+		}
+	} else {
+		var rootCmd = &cobra.Command{
+			SilenceErrors: true,
+			SilenceUsage:  true,
+			Use:           "labeler",
+			Short:         "label all kubernetes resources with provided key/value pair",
+			Long:          `Utility that automates the labeling of resources output from kubectl, kustomize, and helm`,
+			Run: func(cmd *cobra.Command, args []string) {
+				if flags.label == "" {
+					log.Println("No label provided")
+					os.Exit(1)
+				}
 
-			print = logNoop
-			if flags.verbose {
-				print = logOut
-			}
-			p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
+				print = logNoop
+				if flags.verbose {
+					print = logOut
+				}
+				p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
 
-			return p.detectInput()
-		},
+				p.detectInput()
+			},
+		}
+
+		rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+			// cmd.Println(err)
+			// cmd.Println(cmd.UsageString())
+			return SilentErr(err)
+		})
+		// rootCmd.Flags().StringVarP(&flags.filepath, flagsName.file, flagsName.fileShort, "", "path to the file")
+		rootCmd.PersistentFlags().StringVarP(&flags.label, flagsName.label, flagsName.labelShort, "", "label to apply to all resources e.g. -l app.kubernetes.io/part-of=sample-value")
+		rootCmd.PersistentFlags().StringVarP(&flags.kubeconfig, flagsName.kubeconfig, flagsName.kubeconfigShort, "", "kubeconfig to use")
+		rootCmd.PersistentFlags().StringVarP(&flags.context, flagsName.context, flagsName.contextShort, "", "context to use")
+		rootCmd.PersistentFlags().BoolVarP(&flags.verbose, flagsName.verbose, flagsName.verboseShort, false, "log verbose output")
+		rootCmd.PersistentFlags().BoolVarP(&flags.debug, flagsName.debug, flagsName.debugShort, false, "debug mode")
+
+		err = rootCmd.Execute()
+		if err != nil {
+			log.Println(err)
+			os.Exit(1)
+		}
 	}
+}
 
-	rootCmd.Flags().StringVarP(&flags.filepath, flagsName.file, flagsName.fileShort, "", "path to the file")
-	rootCmd.PersistentFlags().StringVarP(&flags.label, flagsName.label, flagsName.labelShort, "", "label to apply to all resources e.g. -l app.kubernetes.io/part-of=sample-value")
-	rootCmd.PersistentFlags().StringVarP(&flags.kubeconfig, flagsName.kubeconfig, flagsName.kubeconfigShort, "", "kubeconfig to use")
-	rootCmd.PersistentFlags().StringVarP(&flags.context, flagsName.context, flagsName.contextShort, "", "context to use")
-	rootCmd.PersistentFlags().BoolVarP(&flags.verbose, flagsName.verbose, flagsName.verboseShort, false, "log verbose output")
-	rootCmd.PersistentFlags().BoolVarP(&flags.debug, flagsName.debug, flagsName.debugShort, false, "debug mode")
-
-	err = rootCmd.Execute()
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+func SilentErr(error) error {
+	return nil
 }

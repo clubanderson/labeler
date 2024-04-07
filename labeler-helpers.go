@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,6 +20,16 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+func isYAML(line string) bool {
+	// Check if the line starts with "---" or starts with whitespace followed by "-"
+	return strings.HasPrefix(strings.TrimSpace(line), "-") || strings.HasPrefix(line, "---")
+}
+
+func isInputFromPipe() bool {
+	fileInfo, _ := os.Stdin.Stat()
+	return fileInfo.Mode()&os.ModeCharDevice == 0
+}
 
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)

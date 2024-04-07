@@ -207,3 +207,35 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
         🏷️ labeled object /v1/services "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-value
         🏷️ labeled object /v1/services "sealed-secrets-metrics" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-value
         🏷️ labeled object apps/v1/deployments "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-value
+
+
+# Labeler as an alias to kubectl and helm
+
+copy labeler to you /usr/local/bin (this will be handled by brew soon)
+
+    sudo cp labeler /usr/local/bin
+
+edit you rc file (./zshrc)
+
+    alias kl='labeler kubectl'
+    alias hl='labeler helm'
+
+run kl with any kubectl command line arguments, and labeler will label all applied/created resources, or give output on how to do so:
+
+    kl apply -f examples/kubectl/pass -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite
+    
+    invoked as alias
+
+    args: [kubectl apply -f examples/kubectl/pass -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite]
+    context: --context=kind-kind
+    p.namespace: default
+    labelCmd: [-n default label deployment/my-app-deployment2 app.kubernetes.io/part-of=sample --overwrite --context=kind-kind]
+    running command: kubectl -n default label deployment/my-app-deployment2 app.kubernetes.io/part-of=sample --overwrite --context=kind-kind 
+      deployment.apps/my-app-deployment2 already has label
+    labelCmd: [-n default label service/my-app-service2 app.kubernetes.io/part-of=sample --overwrite --context=kind-kind]
+    running command: kubectl -n default label service/my-app-service2 app.kubernetes.io/part-of=sample --overwrite --context=kind-kind 
+      service/my-app-service2 already has label
+    deployment.apps/my-app-deployment2 unchanged
+    service/my-app-service2 unchanged
+
+run hl with any helm command line arguments, and labeler will label all installed resources, or give output on how to do so
