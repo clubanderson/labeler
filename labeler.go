@@ -296,19 +296,19 @@ func (p ParamsStruct) detectInput() error {
 	runResults.didNotLabel = []string{}
 
 	if isInputFromPipe() {
-		// if input is from a pipe, traverseinput and label the
-		// content of stdin
-		log.Println("data is from pipe")
-		// try to use output - might be yaml from --debug
-		// if not --debug, then it is 'helm install', or 'helm template', or 'helm install --dry-run'
-		// 'helm install' produces no yaml output
-		// 'helm template' and 'helm install --dry-run' produce yaml - but they do not apply resources - and this might be the intent,
-		// but labeling will fail if resources are not created, or are not present from a previous run of helm
-		// '--debug' allows for install and yaml output - good combination we should check for first
-		// 'template' and 'install --dry-run' are good also - but be prepared for failing to label if resources are missing
-		// so, lets see if we got some yaml first - then behave nicely if labeling fails and instruct on how to run helm again with --debug piped into labeler
-		// and, if there is no yaml input at all - return with info on how to use with helm with --debug and labeler
-		// Read the input
+		// // if input is from a pipe, traverseinput and label the
+		// // content of stdin
+		// log.Println("data is from pipe")
+		// // try to use output - might be yaml from --debug
+		// // if not --debug, then it is 'helm install', or 'helm template', or 'helm install --dry-run'
+		// // 'helm install' produces no yaml output
+		// // 'helm template' and 'helm install --dry-run' produce yaml - but they do not apply resources - and this might be the intent,
+		// // but labeling will fail if resources are not created, or are not present from a previous run of helm
+		// // '--debug' allows for install and yaml output - good combination we should check for first
+		// // 'template' and 'install --dry-run' are good also - but be prepared for failing to label if resources are missing
+		// // so, lets see if we got some yaml first - then behave nicely if labeling fails and instruct on how to run helm again with --debug piped into labeler
+		// // and, if there is no yaml input at all - return with info on how to use with helm with --debug and labeler
+		// // Read the input
 		scanner := bufio.NewScanner(os.Stdin)
 		var input []byte
 		for scanner.Scan() {
@@ -333,7 +333,7 @@ func (p ParamsStruct) detectInput() error {
 
 		// Try parsing the input as YAML
 		if err := yaml.Unmarshal(input, &yamlData); err != nil {
-			log.Printf("warning: no YAML input was detected %v", err)
+			// log.Printf("warning: no YAML input was detected %v", err)
 		}
 
 		// Check if YAML was provided
@@ -346,7 +346,7 @@ func (p ParamsStruct) detectInput() error {
 				return err
 			}
 		} else {
-			log.Println("No YAML data detected in stdin, will try to run again with YAML output")
+			// log.Println("No YAML data detected in stdin, will try to run again with YAML output")
 			// time to do it the hard way - many may not like this approach (history hack) - the other options above are more than sufficient for most people's use
 			return p.helmOrKubectl(os.Stdin, os.Stdout, buffer)
 		}
@@ -392,7 +392,7 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 		// os.Exit(1)
 	}
 
-	log.Printf("original command: %q\n\n", originalCommand)
+	// log.Printf("original command: %q\n\n", originalCommand)
 
 	if cmdFound == "helm" {
 		modifiedCommand := strings.Replace(originalCommand, "install", "template", 1)
@@ -601,10 +601,10 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, string, error) {
 	switch os := runtime.GOOS; os {
 	case "darwin":
 		// if mac
-		log.Println("mac")
+		// log.Println("mac")
 		cmd = exec.Command("bash", "-c", "history -a; history -r ~/.zsh_history; history 1")
 	case "linux":
-		log.Println("linux")
+		// log.Println("linux")
 		// if linux (tested on ubuntu)
 		// remember to set:
 		//     echo PROMPT_COMMAND="history -a; $PROMPT_COMMAND"  > ~/.bashrc
@@ -624,18 +624,18 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, string, error) {
 
 	err := cmd.Start()
 	if err != nil {
-		log.Println("   🔴 error starting command:", err)
+		// log.Println("   🔴 error starting command:", err)
 		return "", "", err
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		log.Println("   🔴 error waiting for command to complete:", err)
+		// log.Println("   🔴 error waiting for command to complete:", err)
 		return "", "", err
 	}
 
 	originalCmd, cmdFound, err := extractCmdFromHistory(string(outputBuf.Bytes()))
-	log.Printf("command found: %q\n", cmdFound)
+	// log.Printf("command found: %q\n", cmdFound)
 	return originalCmd, cmdFound, err
 }
 

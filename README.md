@@ -74,16 +74,12 @@ The result, in all cases, would be output of the yaml used to create resources a
 
 
 
+Traditional use of helm
 
+    helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+    helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --debug
 
-### UNDER CONSTRUCTION:
-
-
-
-new to try:
-    KUBECONFIG=~/.kube/config helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
-    KUBECONFIG=~/.kube/config helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --debug
-
+Using labeler as a piped command
 
   install with debug (native yaml - resources applied, labeling succeeds)
     helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --debug | ./labeler -l app.kubernetes.io/part-of=sample-value -k ~/.kube/config -c kind-kind; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
@@ -102,15 +98,15 @@ works like this...
 
     kubectl (bunch of files in a path)
         (without error from kubectl)
-          kubectl --context=kind-kind apply -f examples/kubectl/pass | ./labeler -l app.kubernetes.io/part-of=sample-value
+          kubectl --context=kind-kind apply -f ./examples/kubectl/pass | ./labeler -l app.kubernetes.io/part-of=sample-value
         (with error returning from kubectl)
-          kubectl --context=kind-kind apply -f examples/kubectl/fail | ./labeler -l app.kubernetes.io/part-of=sample-value 
+          kubectl --context=kind-kind apply -f ./examples/kubectl/fail | ./labeler -l app.kubernetes.io/part-of=sample-value 
     
     kubectl (single file)
-        kubectl --context=kind-kind apply -f a.yaml-file.yml | ./labeler app.kubernetes.io/part-of=another-sample-value
+        kubectl --context=kind-kind apply -f ./examples/kubectl/pass/deployment.yml | ./labeler -l app.kubernetes.io/part-of=another-sample-value
     
     kustomize
-        kubectl --context=kind-kind apply -k examples/kustomize | ./labeler -l app.kubernetes.io/part-of=sample-value
+        kubectl --context=kind-kind apply -k ./examples/kustomize | ./labeler -l app.kubernetes.io/part-of=sample-value
 
     helm (local chart)
         helm --kube-context=kind-kind install my-release-name ./mychart | ./labeler app.kubernetes.io/part-of=my-release-value
@@ -136,12 +132,12 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
       helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler -l app.kubernetes.io/part-of=sample-value
     
     failing test ('-l' missing from command)
-      helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler app.kubernetes.io/part-of=sample-value
+      helm --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace | ./labeler -l app.kubernetes.io/part-of=sample-value
     
     - or -
 
     passing test:
-      helm --kube-context=kind-kind install nginx oci://ghcr.io/nginxinc/charts/nginx-ingress -n nginx --create-namespace --version 1.2.0 | ./labeler app.kubernetes.io/part-of=sample-value
+      helm --kube-context=kind-kind install nginx oci://ghcr.io/nginxinc/charts/nginx-ingress -n nginx --create-namespace --version 1.2.0 | ./labeler -l app.kubernetes.io/part-of=sample-value
 
     - or -
 

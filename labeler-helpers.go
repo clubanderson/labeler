@@ -107,7 +107,7 @@ func (p ParamsStruct) useContext(contextName string) {
 	setContext := []string{"config", "use-context", contextName}
 	_, err := p.runCmd("kubectl", setContext)
 	if err != nil {
-		log.Printf("   🔴 error setting kubeconfig's current context: %v\n", err)
+		// log.Printf("   🔴 error setting kubeconfig's current context: %v\n", err)
 	} else {
 		log.Printf("   📍 kubeconfig's current context set to %v\n", contextName)
 	}
@@ -172,7 +172,7 @@ func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) 
 
 	err = cmd.Wait()
 	if err != nil {
-		log.Println("   🔴 error waiting for command to complete:", err)
+		// log.Println("   🔴 error waiting for command to complete:", err)
 		log.Println(string(outputBuf.Bytes()))
 		return nil, err
 	}
