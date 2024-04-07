@@ -45,6 +45,7 @@ type ParamsStruct struct {
 	dryrunMode           bool
 	debugMode            bool
 	templateMode         bool
+	installMode          bool
 }
 
 type resultsStruct struct {
@@ -98,6 +99,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	p.debugMode = false
 	p.dryrunMode = false
 	p.templateMode = false
+	p.namespace = ""
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
 		for i := 0; i < len(args); i++ {
 			// log.Printf("arg: %v\n", args[i])
@@ -119,6 +121,8 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				p.dryrunMode = true
 			} else if args[i] == "template" {
 				p.templateMode = true
+			} else if args[i] == "install" {
+				p.installMode = true
 			}
 		}
 		// log.Println("before args: ", args)
@@ -147,10 +151,21 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				os.Exit(1)
 			}
 
+			p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
+
 			// Format the output
 			output := strings.TrimSpace(string(out))
 			lines := strings.Split(output, "\n")
 			p.setLabelKubectl(lines)
+
+			if p.namespace != "" && p.namespace != "default" {
+				err = p.setLabelNamespace()
+				if err != nil {
+					log.Println("Error (set label namespace):", err)
+					return err
+				}
+			}
+
 		} else if args[0] == "helm" {
 			// run the original helm command without the extra labeler flags
 			output, err := p.runCmd("helm", args[1:])
@@ -177,20 +192,63 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				log.Println("Error (to traverseInput):", err)
 				return err
 			}
-			if len(runResults.didNotLabel) > 0 {
-				log.Printf("\nThe following resources do not exist and can be labeled at a later time:\n\n")
-				for _, cmd := range runResults.didNotLabel {
-					log.Printf(cmd)
+			if p.namespace != "" && p.namespace != "default" {
+				err = p.setLabelNamespace()
+				if err != nil {
+					log.Println("Error (set label namespace):", err)
+					return err
 				}
 			}
-			log.Println()
 
+		}
+
+		if len(runResults.didNotLabel) > 0 {
+			log.Printf("\nThe following resources do not exist and can be labeled at a later time:\n\n")
+			for _, cmd := range runResults.didNotLabel {
+				log.Printf(cmd)
+			}
 		}
 	}
 	return nil
 }
 
-// Stub function for traversing each line of output and applying labels if matched by regex
+func (p ParamsStruct) setLabelNamespace() error {
+	gvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "namespaces",
+	}
+	labels := map[string]string{
+		p.labelKey: p.labelVal,
+	}
+	// serialize labels to JSON
+	patch, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"labels": labels,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// todo - this logic is not working right. should only label the namespace if installmode is true and dryrunmode is false - I am not doing something right in the following if statement
+	// because it is always true - and I am not sure why
+	// log.Printf("dryrunMode: %v, templateMode: %v, installMode: %v\n", p.dryrunMode, p.templateMode, p.installMode)
+	if p.installMode && !p.dryrunMode {
+		// log.Printf("   🟡 patching namespace %q with %v=%v %q %q %q %v\n", p.namespace, p.labelKey, p.labelVal, gvr.Resource, gvr.Version, gvr.Group, string(patch))
+		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), p.namespace, types.MergePatchType, patch, metav1.PatchOptions{})
+	}
+	if err != nil {
+		if p.installMode && !p.dryrunMode {
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, p.namespace, p.labelKey, p.labelVal)
+			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
+		}
+	} else {
+		log.Printf("  🏷️ labeled object %v/%v/%v %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, p.namespace, p.labelKey, p.labelVal)
+	}
+	return nil
+}
+
 func traverseLine(line, namespace, context, kubeconfig string) {
 	// Implement your traversal logic here
 	// Example: Apply label if the line contains "pattern"
@@ -299,10 +357,7 @@ func (p ParamsStruct) detectInput() error {
 			log.Printf(cmd)
 		}
 	}
-	log.Println()
-
 	return nil
-
 }
 
 func getFile() (*os.File, error) {
@@ -471,9 +526,9 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 			log.Printf("label did not apply due to error: %v", err)
 		} else {
 			if strings.Contains(string(output), "not labeled") {
-				log.Printf("  " + strings.Split(string(output), " ")[0] + " already has label")
+				log.Printf("  %v already has label %v=%v", strings.Split(string(output), " ")[0], p.labelKey, p.labelVal)
 			} else {
-				log.Printf("          🏷️ created and labeled object %q in namespace %q with %v=%v\n", objectName, namespace, p.labelKey, p.labelVal)
+				log.Printf("  🏷️ created and labeled object %q in namespace %q with %v=%v\n", objectName, namespace, p.labelKey, p.labelVal)
 			}
 		}
 	}
@@ -524,7 +579,8 @@ func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVer
 		}
 		return err
 	}
-	log.Printf("          🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.labelKey, p.labelVal)
+
+	log.Printf("  🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.labelKey, p.labelVal)
 	return nil
 }
 
@@ -633,7 +689,7 @@ func main() {
 		args := os.Args[1:]
 		if len(args) > 0 {
 			if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
-				log.Println("invoked as alias: ")
+				// log.Println("invoked as alias: ")
 				p.aliasRun(args)
 			}
 		}
