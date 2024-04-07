@@ -217,10 +217,12 @@ copy labeler to you /usr/local/bin (this will be handled by brew soon)
 
 edit you rc file (./zshrc)
 
-    alias kl='labeler kubectl'
-    alias hl='labeler helm'
+    alias kl='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
+    alias hl='labeler helm'     # you could also replace 'helm' (looking into this)
 
 run kl with any kubectl command line arguments, and labeler will label all applied/created resources, or give output on how to do so:
+
+  kubectl
 
     kl apply -f examples/kubectl/pass -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite
     
@@ -237,5 +239,21 @@ run kl with any kubectl command line arguments, and labeler will label all appli
       service/my-app-service2 already has label
     deployment.apps/my-app-deployment2 unchanged
     service/my-app-service2 unchanged
+
+  kustomize
+
+    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite
+
+    invoked as alias
+
+    args: [kubectl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite]
+    context: --context=kind-kind
+    p.namespace: default
+    labelCmd: [-n default label service/my-app-service app.kubernetes.io/part-of=sample --overwrite --context=kind-kind]
+    running command: kubectl -n default label service/my-app-service app.kubernetes.io/part-of=sample --overwrite --context=kind-kind 
+    labelCmd: [-n default label deployment/my-app-deployment app.kubernetes.io/part-of=sample --overwrite --context=kind-kind]
+    running command: kubectl -n default label deployment/my-app-deployment app.kubernetes.io/part-of=sample --overwrite --context=kind-kind 
+    service/my-app-service unchanged
+    deployment.apps/my-app-deployment unchanged
 
 run hl with any helm command line arguments, and labeler will label all installed resources, or give output on how to do so
