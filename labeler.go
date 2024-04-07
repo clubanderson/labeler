@@ -720,6 +720,7 @@ func main() {
 				if flags.verbose {
 					print = logOut
 				}
+				p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
 
 				p.detectInput()
 			},

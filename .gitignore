@@ -4,3 +4,4 @@ labeler
 /network-cache
 exec
 .DS_Store
+/.cache/

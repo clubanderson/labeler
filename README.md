@@ -126,7 +126,7 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
 
 ### to build:
 
-  go build labeler.go labeler-helpers.go    
+  go build labeler.go labeler-helpers.go labeler-bp-creator.go  
   
 ### to test:
 
