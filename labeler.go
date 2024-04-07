@@ -11,26 +11,21 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"k8s.io/client-go/discovery/cached/disk"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type ParamsStruct struct {
@@ -41,6 +36,12 @@ type ParamsStruct struct {
 	labelerRestConfig    *rest.Config
 	labelerDynamicClient *dynamic.DynamicClient
 }
+
+type resultsStruct struct {
+	didNotLabel []string
+}
+
+var runResults resultsStruct
 
 var flags struct {
 	filepath   string
@@ -83,6 +84,8 @@ var flagsName = struct {
 
 func (p ParamsStruct) detectInput() error {
 	var yamlData interface{}
+	var buffer []string
+	runResults.didNotLabel = []string{}
 
 	if isInputFromPipe() {
 		// if input is from a pipe, traverseinput and label the
@@ -102,12 +105,11 @@ func (p ParamsStruct) detectInput() error {
 		var input []byte
 		for scanner.Scan() {
 			line := scanner.Text()
+			buffer = append(buffer, line)
 			if !isYAML(line) {
 				continue // Skip non-YAML lines
 			}
 			break
-			// input = append(input, scanner.Bytes()...)
-			// input = append(input, '\n') // Append newline to separate lines
 		}
 
 		for scanner.Scan() {
@@ -138,7 +140,7 @@ func (p ParamsStruct) detectInput() error {
 		} else {
 			log.Println("No YAML data detected in stdin, will try to run again with YAML output")
 			// time to do it the hard way - many may not like this approach (history hack) - the other options above are more than sufficient for most people's use
-			return p.helmOrKubectl(os.Stdin, os.Stdout)
+			return p.helmOrKubectl(os.Stdin, os.Stdout, buffer)
 		}
 	} else {
 		// ...otherwise get the file
@@ -148,8 +150,16 @@ func (p ParamsStruct) detectInput() error {
 			return e
 		}
 		defer file.Close()
-		return p.helmOrKubectl(file, os.Stdout)
+		return p.helmOrKubectl(file, os.Stdout, buffer)
 	}
+
+	if len(runResults.didNotLabel) > 0 {
+		log.Printf("\nThe following resources do not exist and can be labeled at a later time:\n\n")
+		for _, cmd := range runResults.didNotLabel {
+			log.Printf(cmd)
+		}
+	}
+	log.Println()
 
 	return nil
 
@@ -180,14 +190,14 @@ func getFile() (*os.File, error) {
 	return file, nil
 }
 
-func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
+func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) error {
 	originalCommand, cmdFound, err := p.getOriginalCommandFromHistory()
 	if err != nil {
 		log.Println("Error (get history):", err)
 		// os.Exit(1)
 	}
 
-	log.Printf("Original command: %q\n", originalCommand)
+	log.Printf("original command: %q\n\n", originalCommand)
 
 	if cmdFound == "helm" {
 		modifiedCommand := strings.Replace(originalCommand, "install", "template", 1)
@@ -205,37 +215,55 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer) error {
 		}
 	} else if cmdFound == "kubectl" {
 		// this is plain kubectl
-		// HACKME!!!! - get the yaml by traversing the files given to 'apply -f' and then label them
-		// p.functionToGetYAMLfromKubectlFiles(originalCmd)
-		p.traverseInputAndLabel(r, w)
-		if err != nil {
-			log.Println("Error (traverseinput):", err)
-			os.Exit(1)
-		}
-	} else {
-		// this is plain kubectl
-		// HACKME!!!! - get the yaml by traversing the files given to 'apply -k' and then label them
-		// p.functionToGetYAMLfromKustomizeFiles(originalCmd)
-		p.traverseInputAndLabel(r, w)
-		if err != nil {
-			log.Println("Error (traverseinput):", err)
-			os.Exit(1)
-		}
+		p.labelFromKubectlRunOutput(input)
+	} else if cmdFound == "kustomize" {
+		// this is kustomize
+		p.labelFromKubectlRunOutput(input)
 	}
 	return nil
 }
 
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil
-}
+func (p ParamsStruct) functionToGetYAMLfromKustomizeFiles(originalCmd string) error {
+	// the kind and object name is output from kustomize... how do we get the resource name... mapper to the rescue
+	// this might work without mapping... lets try...
 
-var print = func(v ...interface{}) {}
+	mapper, _ := p.createCachedDiscoveryClient(*p.labelerRestConfig)
+	_ = mapper
+	gvk := schema.GroupVersionKind{
+		Group:   "",
+		Version: "",
+		Kind:    "",
+	}
+	_ = gvk
+	// resourceList, _ := mapper.ServerPreferredResources()
+	// _ = resourceList
 
-func logOut(v ...interface{}) {
-	log.Println(v...)
+	// for _, resource := range resourceList {
+	// 	// log.Println(resource)
+	// 	for _, apiResource := range resource.APIResources {
+	// 		// log.Printf("Group: %s, Version: %s, Kind: %s, Resource: %s\n", apiResource.Group, apiResource.Version, apiResource.Kind, apiResource.Name)
+	// 		if apiResource.Name == rtype {
+	// 			groupVersion := strings.Split(resource.GroupVersion, "/")
+	// 			if len(groupVersion) == 2 {
+	// 				gvr = schema.GroupVersionResource{
+	// 					Group:    groupVersion[0],
+	// 					Version:  groupVersion[1],
+	// 					Resource: apiResource.Name,
+	// 				}
+	// 			} else {
+	// 				gvr = schema.GroupVersionResource{
+	// 					Group:    "",
+	// 					Version:  groupVersion[0],
+	// 					Resource: apiResource.Name,
+	// 				}
+	// 			}
+	// 			return gvr, apiResource.Namespaced, nil
+	// 		}
+	// 	}
+	// }
+	return nil
+	// return gvr, false, fmt.Errorf("resource kind not found for resource type %v", rtype)
 }
-func logNoop(v ...interface{}) {}
 
 func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 	mapper, _ := p.createCachedDiscoveryClient(*p.labelerRestConfig)
@@ -262,7 +290,7 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 		err := decoder.Decode(&obj)
 		if err != nil {
 			if err.Error() != "EOF" && !strings.Contains(err.Error(), "did not find expected alphabetic or numeric character") {
-				log.Printf("      🔴 decoding error: %v\n%v\n", err, obj)
+				log.Printf("   🔴 decoding error: %v\n%v\n", err, obj)
 			}
 			break // Reached end of file or error
 		}
@@ -275,17 +303,16 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 		}
 		runtimeObj, err := DecodeYAML(yamlBytes)
 		if err != nil {
-			// log.Printf("      🔴 error decoding yaml: %v\n", err)
+			// log.Printf("   🔴 error decoding yaml: %v\n", err)
 			continue
 		}
 		gvk := runtimeObj.GroupVersionKind()
-		_ = gvk
 		// log.Printf("G: %v, V: %v, K: %v, Name: %v", gvk.Group, gvk.Version, gvk.Kind, runtimeObj.GetName())
 
 		gvr, err := p.getGVRFromGVK(mapper, gvk)
 		if err != nil {
 			if p.debug {
-				log.Printf("          🟡 error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
+				log.Printf("   🟡 error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
 			}
 		}
 
@@ -299,50 +326,56 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 	return nil
 }
 
-// // p.labelFromKustomizeRunOutput(listOfObjects, contextName, starNs, starLabel)
-// func (p ParamsStruct) labelFromKustomizeRunOutput(listOfObjects []byte, contextName, starNs, starLabel string) {
-// 	re := regexp.MustCompile(`([a-zA-Z0-9.-]+\/[a-zA-Z0-9.-]+) ([a-zA-Z0-9.-]+)`)
-// 	matches := re.FindAllStringSubmatch(string(listOfObjects), -1)
+func (p ParamsStruct) labelFromKubectlRunOutput(input []string) {
+	allLines := strings.Join(input, "\n")
 
-// 	// iterate over matches and extract group version kind and object name
-// 	for _, match := range matches {
-// 		// the first capture group contains the group version kind and object name
-// 		groupVersionKindObjectName := match[1]
-// 		// split the string to get group version kind and object name
-// 		parts := strings.Split(groupVersionKindObjectName, "/")
-// 		gvkParts := strings.Split(parts[0], ".")
-// 		kind := gvkParts[0]
-// 		group := gvkParts[1:]
-// 		objectName := parts[1]
-// 		log.Printf("group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
-// 		if starLabel != "{{values.no-label}}" {
-// 			labelCmd := []string{"kubectl", "--context=" + contextName, "-n", starNs, "label", kind + "/" + objectName, "app.kubernetes.io/part-of=" + starLabel}
-// 			_, err := p.runCmd(labelCmd, true)
-// 			if err != nil {
-// 				log.Printf("label did not apply: %v", err)
-// 			}
-// 		}
-// 	}
-// }
+	re := regexp.MustCompile(`([a-zA-Z0-9.-]+\/[a-zA-Z0-9.-]+) ([a-zA-Z0-9.-]+)`)
+	matches := re.FindAllStringSubmatch(allLines, -1)
 
-func getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapping: %v", err)
+	namespace := "default" // this needs to be the value given to kubectl - if empty, then it is default
+
+	if flags.label == "" {
+		log.Println("No label provided")
+		return
+	}
+	labelSlice := strings.Split(flags.label, "=")
+	labelKey, labelVal := labelSlice[0], labelSlice[1]
+
+	if len(matches) == 0 {
+		log.Println("No resources found to label")
+		return
 	}
 
-	gvr := mapping.Resource
-
-	// Check if the resource is found
-	if gvr.Resource == "" {
-		return schema.GroupVersionResource{}, fmt.Errorf("resource name not found for kind %s/%s %s", gvk.Group, gvk.Version, gvk.Kind)
+	// iterate over matches and extract group version kind and object name
+	for _, match := range matches {
+		var labelCmd []string
+		// log.Printf("match: %v\n", match)
+		// the first match group contains the group version kind and object name
+		groupVersionKindObjectName := match[1]
+		// split the string to get group version kind and object name
+		parts := strings.Split(groupVersionKindObjectName, "/")
+		gvkParts := strings.Split(parts[0], ".")
+		kind := gvkParts[0]
+		// group := gvkParts[1:]
+		objectName := parts[1]
+		// log.Printf("group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
+		if flags.context != "" {
+			labelCmd = []string{"--context=" + flags.context, "-n", namespace, "label", kind + "/" + objectName, labelKey + "=" + labelVal, "--overwrite"}
+		} else {
+			labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, labelKey + "=" + labelVal, "--overwrite"}
+		}
+		output, err := p.runCmd("kubectl", labelCmd)
+		if err != nil {
+			log.Printf("label did not apply due to error: %v", err)
+		} else {
+			if strings.Contains(string(output), "not labeled") {
+				log.Printf("  " + strings.Split(string(output), " ")[0] + " already has label")
+			}
+		}
 	}
-
-	return gvr, nil
 }
 
 func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVersionResource) error {
-
 	labelSlice := strings.Split(flags.label, "=")
 	labelKey, labelVal := labelSlice[0], labelSlice[1]
 	labels := map[string]string{
@@ -362,48 +395,25 @@ func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVer
 	if namespace == "" {
 		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 	} else {
-
 		_, err = p.labelerDynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 	}
 
 	if err != nil {
-		log.Printf("          🟡 failed to set labels on object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
+		if namespace != "" {
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v -n %v\n", gvr.Resource, objectName, labelKey, labelVal, namespace)
+			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
+		} else {
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, objectName, labelKey, labelVal)
+			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
+		}
 		return err
 	}
-
 	log.Printf("          🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, labelKey, labelVal)
 	return nil
 }
 
-func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) {
-	log.Println(cmdArgs)
-	cmd := exec.Command(cmdToRun, cmdArgs...)
-	cmd.Env = append(cmd.Env, "PATH="+p.path)
-	cmd.Env = append(cmd.Env, "HOME="+p.homeDir)
-
-	var outputBuf bytes.Buffer
-	cmd.Stdout = io.MultiWriter(&outputBuf)
-	cmd.Stderr = io.MultiWriter(&outputBuf)
-
-	err := cmd.Start()
-	if err != nil {
-		log.Println("   🔴 error starting command:", err)
-		return nil, err
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		log.Println("   🔴 error waiting for command to complete:", err)
-		log.Println(string(outputBuf.Bytes()))
-		return nil, err
-	}
-	return outputBuf.Bytes(), nil
-}
-
 func (p ParamsStruct) getOriginalCommandFromHistory() (string, string, error) {
 	// TODO: this may not always be zsh, could be bash - should check if bash_history or zsh_history has "labeler" in it - that would tell us we have the right history file
-
-	//placeholder
 	cmd := exec.Command("bash")
 
 	switch os := runtime.GOOS; os {
@@ -450,39 +460,39 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, string, error) {
 func extractCmdFromHistory(historyText string) (string, string, error) {
 	// Find the index of the first semicolon
 	cmdFound := "helm"
-	helmTextIndex := strings.Index(historyText, "helm")
-	if helmTextIndex == -1 {
-		// log.Printf("helm not found: %v", historyText)
-	} else {
-		cmdFound = "helm"
-	}
-
-	// trim everything before the semicolon and trim any leading or trailing whitespace
 	trimmedCommand := strings.TrimSpace(historyText)
 
 	// find the index of the first pipe character in the trimmed command
 	pipeIdx := strings.Index(trimmedCommand, "|")
 	if pipeIdx == -1 {
-		return string(trimmedCommand), "", nil
+		// return string(trimmedCommand), "", nil
 		// return "", log.Errorf("pipe character not found")
 	} else {
 		trimmedCommand = trimmedCommand[:pipeIdx]
+	}
+
+	helmTextIndex := strings.Index(historyText, "helm")
+	if helmTextIndex == -1 {
+		// log.Printf("helm not found: %v", historyText)
+	} else {
+		cmdFound = "helm"
+		trimmedCommand = trimmedCommand[helmTextIndex:]
+		return strings.TrimSpace(trimmedCommand), cmdFound, nil
 	}
 
 	// find the index of the first 'k' character in the trimmed command
 	kubectlIdx := strings.Index(trimmedCommand, "k")
 	if kubectlIdx == -1 {
 		return string(trimmedCommand), cmdFound, nil
-		// return "", log.Errorf("kubectl not found")
 	} else {
 		trimmedCommand = trimmedCommand[kubectlIdx:]
 		cmdFound = "kubectl"
 	}
 
 	// find the index of the first 'k' character in the trimmed command
-	if !strings.Contains(trimmedCommand, "-k") {
+	kustomizeIdx := strings.Index(trimmedCommand, " -k ")
+	if kustomizeIdx == -1 {
 		return string(trimmedCommand), cmdFound, nil
-		// return "", log.Errorf("kustomize not found")
 	} else {
 		cmdFound = "kustomize"
 	}
@@ -490,101 +500,6 @@ func extractCmdFromHistory(historyText string) (string, string, error) {
 	// trim everything after the pipe character and trim any leading or trailing whitespace
 	return strings.TrimSpace(trimmedCommand), cmdFound, nil
 
-}
-
-func (p ParamsStruct) switchContext() (*kubernetes.Clientset, *rest.Config, *dynamic.DynamicClient) {
-	var err error
-	var kubeConfigPath string
-
-	if flags.kubeconfig == "" {
-		kubeConfigPath = filepath.Join(p.homeDir, ".kube", "config")
-	} else {
-		kubeConfigPath = filepath.Join(flags.kubeconfig)
-	}
-
-	// load kubeconfig from file
-	apiConfig, err := clientcmd.LoadFromFile(kubeConfigPath)
-	if err != nil {
-		log.Printf("🔴 error loading kubeconfig: %q\n", err)
-		os.Exit(1)
-	}
-
-	if flags.context != "" {
-		// check if the specified context exists in the kubeconfig
-		if _, exists := apiConfig.Contexts[flags.context]; !exists {
-			log.Printf("Context %q does not exist in the kubeconfig\n", flags.context)
-			os.Exit(1)
-		}
-		// switch the current context in the kubeconfig
-		apiConfig.CurrentContext = flags.context
-	}
-
-	// create a new clientset with the updated config
-	clientConfig := clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{})
-	restConfig, err := clientConfig.ClientConfig()
-	if err != nil {
-		log.Printf("🔴 error creating clientset config: %v\n", err)
-		os.Exit(1)
-	}
-	ocClientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		log.Printf("🔴 error creating clientset: %v\n", err)
-		os.Exit(1)
-	}
-	ocDynamicClient, err := dynamic.NewForConfig(restConfig)
-	if err != nil {
-		log.Printf("🔴 error create dynamic client: %v\n", err)
-		os.Exit(1)
-	}
-
-	return ocClientset, restConfig, ocDynamicClient
-}
-
-func (p ParamsStruct) createCachedDiscoveryClient(restConfigCoreOrWds rest.Config) (*restmapper.DeferredDiscoveryRESTMapper, error) {
-	// create a cached discovery client for the provided config
-	cachedDiscoveryClient, err := disk.NewCachedDiscoveryClientForConfig(&restConfigCoreOrWds, p.homeDir, ".cache", 60)
-	if err != nil {
-		log.Printf("could not get cacheddiscoveryclient: %v", err)
-		// handle error
-	}
-	mapper := restmapper.NewDeferredDiscoveryRESTMapper(cachedDiscoveryClient)
-	return mapper, nil
-}
-
-func (p ParamsStruct) useContext(contextName string) {
-	setContext := []string{"config", "use-context", contextName}
-	_, err := p.runCmd("kubectl", setContext)
-	if err != nil {
-		log.Printf("   🔴 error setting kubeconfig's current context: %v\n", err)
-	} else {
-		log.Printf("   📍 kubeconfig's current context set to %v\n", contextName)
-	}
-}
-
-func (p ParamsStruct) getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapping: %v", err)
-	}
-
-	gvr := mapping.Resource
-
-	// Check if the resource is found
-	if gvr.Resource == "" {
-		return schema.GroupVersionResource{}, fmt.Errorf("resource name not found for kind %s/%s %s", gvk.Group, gvk.Version, gvk.Kind)
-	}
-
-	return gvr, nil
-}
-
-func DecodeYAML(yamlBytes []byte) (*unstructured.Unstructured, error) {
-	obj := &unstructured.Unstructured{}
-	dec := k8sYAML.NewYAMLOrJSONDecoder(bytes.NewReader(yamlBytes), 4096)
-	err := dec.Decode(obj)
-	if err != nil {
-		return nil, err
-	}
-	return obj, nil
 }
 
 func main() {
@@ -604,6 +519,11 @@ func main() {
 		Short: "label all kubernetes resources with provided key/value pair",
 		Long:  `Utility that automates the labeling of resources output from kubectl, kustomize, and helm`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if flags.label == "" {
+				log.Println("No label provided")
+				os.Exit(1)
+			}
+
 			print = logNoop
 			if flags.verbose {
 				print = logOut
