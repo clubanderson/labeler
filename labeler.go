@@ -46,6 +46,7 @@ type ParamsStruct struct {
 	debugMode            bool
 	templateMode         bool
 	installMode          bool
+	createBindingPolicy  bool
 }
 
 type resultsStruct struct {
@@ -100,6 +101,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	p.dryrunMode = false
 	p.templateMode = false
 	p.namespace = ""
+	p.createBindingPolicy = false
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
 		for i := 0; i < len(args); i++ {
 			// log.Printf("arg: %v\n", args[i])
@@ -135,6 +137,9 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			} else if strings.Contains(args[i], "--label=") {
 				p.labelKey = strings.Split(args[i], "=")[1]
 				p.labelVal = strings.Split(args[i], "=")[2]
+				args = append(args[:i], args[i+1:]...)
+			} else if args[i] == "--create-bp" {
+				p.createBindingPolicy = true
 				args = append(args[:i], args[i+1:]...)
 			}
 		}
@@ -208,6 +213,11 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				log.Printf(cmd)
 			}
 		}
+		if p.createBindingPolicy {
+			log.Println()
+			p.createBP()
+		}
+
 	}
 	return nil
 }

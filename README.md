@@ -311,3 +311,22 @@ run kl with any kubectl command line arguments, and labeler will label all appli
       🏷️ labeled object apps/v1/deployments "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
       🏷️ labeled object /v1/namespaces "sealed-secrets" with app.kubernetes.io/part-of=sample-app
 
+
+# Labeler with a sample KubeStellar BindingPolicy as output
+
+    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --create-bp       kind-kind/default ⎈ 
+      service/my-app-service already has label app.kubernetes.io/part-of=sample
+      deployment.apps/my-app-deployment already has label app.kubernetes.io/part-of=sample
+
+    apiVersion: control.kubestellar.io/v1alpha1
+    kind: BindingPolicy
+    metadata:
+      name: wec-kwasm-bindingpolicy
+    wantSingletonReportedState: true
+    clusterSelectors:
+    - matchLabels:
+        location-group: edge
+    downsync:
+    - objectSelectors:
+      - matchLabels:
+          app.kubernetes.io/part-of: sample
