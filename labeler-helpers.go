@@ -156,12 +156,6 @@ func getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.Gr
 }
 
 func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) {
-	fmt.Printf("running command: %v ", cmdToRun)
-	for _, arg := range cmdArgs {
-		fmt.Printf("%v ", arg)
-	}
-	log.Println()
-	// log.Println(cmdToRun, cmdArgs)
 	cmd := exec.Command(cmdToRun, cmdArgs...)
 	cmd.Env = append(cmd.Env, "PATH="+p.path)
 	cmd.Env = append(cmd.Env, "HOME="+p.homeDir)

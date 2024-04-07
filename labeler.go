@@ -87,7 +87,6 @@ var flagsName = struct {
 }
 
 func (p ParamsStruct) aliasRun(args []string) error {
-	log.Println("args:", args)
 	args = os.Args[1:]
 
 	p.overwrite = false
@@ -114,7 +113,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				args = append(args[:i], args[i+2:]...)
 			}
 		}
-		// log.Printf("args: %v\n", args)
+
 		// Run the command with the parsed flags
 		cmd := exec.Command(args[0], args[1:]...)
 		out, err := cmd.CombinedOutput()
@@ -126,10 +125,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		// Format the output
 		output := strings.TrimSpace(string(out))
 		lines := strings.Split(output, "\n")
-		// log.Println("lines:", lines)
-		p.labelFromKubectlRunOutput(lines)
-		// Print the formatted output
-		fmt.Println(output)
+		p.setLabelKubectl(lines)
 	}
 	return nil
 }
@@ -289,10 +285,10 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 		}
 	} else if cmdFound == "kubectl" {
 		// this is plain kubectl
-		p.labelFromKubectlRunOutput(input)
+		p.setLabelKubectl(input)
 	} else if cmdFound == "kustomize" {
 		// this is kustomize
-		p.labelFromKubectlRunOutput(input)
+		p.setLabelKubectl(input)
 	}
 	return nil
 }
@@ -358,9 +354,8 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 	return nil
 }
 
-func (p ParamsStruct) labelFromKubectlRunOutput(input []string) {
+func (p ParamsStruct) setLabelKubectl(input []string) {
 	allLines := strings.Join(input, "\n")
-	// log.Printf("allLines: %v\n", allLines)
 
 	re := regexp.MustCompile(`([a-zA-Z0-9.-]+\/[a-zA-Z0-9.-]+) ([a-zA-Z0-9.-]+)`)
 	matches := re.FindAllStringSubmatch(allLines, -1)
@@ -411,17 +406,14 @@ func (p ParamsStruct) labelFromKubectlRunOutput(input []string) {
 			labelCmd = append(labelCmd, "--kubeconfig="+p.kubeconfig)
 		}
 
-		log.Printf("labelCmd: %v\n", labelCmd)
-
-		// 	} else {
-		// 	labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal, "--overwrite"}
-		// }
 		output, err := p.runCmd("kubectl", labelCmd)
 		if err != nil {
 			log.Printf("label did not apply due to error: %v", err)
 		} else {
 			if strings.Contains(string(output), "not labeled") {
 				log.Printf("  " + strings.Split(string(output), " ")[0] + " already has label")
+			}else{
+				log.Printf("          🏷️ created and labeled object %q in namespace %q with %v=%v\n", objectName, namespace, p.labelKey, p.labelVal)
 			}
 		}
 	}
@@ -566,27 +558,10 @@ func main() {
 	p.homeDir = currentUser.HomeDir
 	p.path = os.Getenv("PATH")
 	if !isInputFromPipe() {
-		// Capture unknown flags
-		// var unknownFlags []string
-		// for i := 1; i < len(os.Args); i++ {
-		// 	if os.Args[i][0] == '-' && len(os.Args[i]) > 1 && os.Args[i][1] != '-' {
-		// 		if i+1 > len(os.Args) {
-		// 			if os.Args[i+1][0] == '-' {
-		// 				unknownFlags = append(unknownFlags, os.Args[i]+" "+os.Args[i+1])
-		// 				// log.Printf("flag: %v\n", os.Args[i]+" "+os.Args[i+1])
-		// 			}
-
-		// 		} else {
-		// 			unknownFlags = append(unknownFlags, os.Args[i])
-		// 			// log.Printf("flag: %v\n", os.Args[i])
-		// 		}
-		// 	}
-		// }
-
 		args := os.Args[1:]
 		if len(args) > 0 {
 			if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
-				log.Println("invoked as alias\n")
+				log.Println("invoked as alias: ")
 				p.aliasRun(args)
 			}
 		}
