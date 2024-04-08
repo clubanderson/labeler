@@ -35,7 +35,7 @@ class Labeler < Formula
 
          hl --kube-context=kind-kind template sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace \e[33m--label=app.kubernetes.io/part-of=sample-app\e[0m --dry-run   
       
-      For more information, visit the readme at \e[33mhttps://github.com/clubanderson/labeler\e[0m
+      For more information, or to make labeler better, visit the readme at \e[33mhttps://github.com/clubanderson/labeler\e[0m
     EOS
   end
 end
