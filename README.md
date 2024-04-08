@@ -35,18 +35,32 @@ After hacking at this for some time, I decided to come up with 2 approaches to r
 
 (check out tests/test.sh for a full battery of tests)
 
-# 1 - Labeler as an alias to kubectl and helm
+# Install with brew, or clone and build
 
-copy labeler to you /usr/local/bin (this will be handled by brew soon)
+    brew tap clubanderson/labeler https://github.com/clubanderson/labeler
+    brew install labeler
+    
+  - or -
 
-    sudo cp labeler /usr/local/bin
+    git clone https://github.com/clubanderson/labeler
+    cd labeler
+    go build labeler.go labeler-helpers.go labeler-bp-creator.go  
+    sudo cp labeler /usr/local/bin # if you want to use labeler from your path
 
-edit your rc file (./zshrc) (or just run these commands on your local shell)
+  - then -
+
+    alias kl="labeler kubectl"
+    alias hl="labeler helm"
+
+  - optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
 
     alias kl='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
     alias hl='labeler helm'     # you could also replace 'helm' (looking into this)
 
-run kl with any kubectl command line arguments, and labeler will label all applied/created resources, or give output on how to do so:
+
+# 1 - Labeler as an alias to kubectl and helm
+
+run kl as you would an kubectl command with arguments, and labeler will label all applied/created resources, or give output on how to do so:
 
   kubectl
 
