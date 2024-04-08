@@ -57,14 +57,14 @@ func (p ParamsStruct) switchContext() (*kubernetes.Clientset, *rest.Config, *dyn
 	// load kubeconfig from file
 	apiConfig, err := clientcmd.LoadFromFile(kubeConfigPath)
 	if err != nil {
-		log.Printf("🔴 error loading kubeconfig: %q\n", err)
+		log.Printf("labeler.go: error loading kubeconfig: %q\n", err)
 		os.Exit(1)
 	}
 
 	if flags.context != "" {
 		// check if the specified context exists in the kubeconfig
 		if _, exists := apiConfig.Contexts[flags.context]; !exists {
-			log.Printf("Context %q does not exist in the kubeconfig\n", flags.context)
+			log.Printf("labeler.go: context %q does not exist in the kubeconfig\n", flags.context)
 			os.Exit(1)
 		}
 		// switch the current context in the kubeconfig
@@ -75,17 +75,17 @@ func (p ParamsStruct) switchContext() (*kubernetes.Clientset, *rest.Config, *dyn
 	clientConfig := clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{})
 	restConfig, err := clientConfig.ClientConfig()
 	if err != nil {
-		log.Printf("🔴 error creating clientset config: %v\n", err)
+		log.Printf("labeler.go: error creating clientset config: %v\n", err)
 		os.Exit(1)
 	}
 	ocClientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		log.Printf("🔴 error creating clientset: %v\n", err)
+		log.Printf("labeler.go: error creating clientset: %v\n", err)
 		os.Exit(1)
 	}
 	ocDynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
-		log.Printf("🔴 error create dynamic client: %v\n", err)
+		log.Printf("labeler.go: error create dynamic client: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -96,7 +96,7 @@ func (p ParamsStruct) createCachedDiscoveryClient(restConfigCoreOrWds rest.Confi
 	// create a cached discovery client for the provided config
 	cachedDiscoveryClient, err := disk.NewCachedDiscoveryClientForConfig(&restConfigCoreOrWds, p.homeDir, ".cache", 60)
 	if err != nil {
-		log.Printf("could not get cacheddiscoveryclient: %v", err)
+		log.Printf("labeler.go: could not get cacheddiscoveryclient: %v", err)
 		// handle error
 	}
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(cachedDiscoveryClient)
@@ -166,14 +166,14 @@ func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) 
 
 	err := cmd.Start()
 	if err != nil {
-		log.Println("   🔴 error starting command:", err)
+		log.Println("labeler.go: error starting command:", err)
 		return nil, err
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		// log.Println("   🔴 error waiting for command to complete:", err)
-		log.Println(string(outputBuf.Bytes()))
+		// log.Println("labeler.go: error waiting for command to complete:", err)
+		log.Printf(string(outputBuf.Bytes()))
 		return nil, err
 	}
 	return outputBuf.Bytes(), nil

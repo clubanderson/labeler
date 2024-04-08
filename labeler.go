@@ -62,6 +62,7 @@ var flags struct {
 	label      string
 	kubeconfig string
 	context    string
+	overwrite  bool
 }
 
 var flagsName = struct {
@@ -77,6 +78,8 @@ var flagsName = struct {
 	kubeconfigShort string
 	context         string
 	contextShort    string
+	overwrite       string
+	overwriteShort  string
 }{
 	file:            "file",
 	fileShort:       "f",
@@ -90,6 +93,8 @@ var flagsName = struct {
 	kubeconfigShort: "k",
 	context:         "context",
 	contextShort:    "c",
+	overwrite:       "overwrite",
+	overwriteShort:  "o",
 }
 
 func (p ParamsStruct) aliasRun(args []string) error {
@@ -104,7 +109,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	p.createBindingPolicy = false
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
 		for i := 0; i < len(args); i++ {
-			// log.Printf("arg: %v\n", args[i])
+			// log.Printf("labeler.go: args: %v\n", args[i])
 			if strings.Contains(args[i], "--context=") {
 				p.context = strings.Split(args[i], "=")[1]
 			} else if args[i] == "-n" && i < len(args)-1 {
@@ -127,7 +132,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				p.installMode = true
 			}
 		}
-		// log.Println("before args: ", args)
+		// log.Println("labeler.go: before args: ", args)
 
 		for i := 0; i < len(args); i++ {
 			if args[i] == "-l" && i < len(args)-1 {
@@ -144,15 +149,15 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			}
 		}
 
-		// log.Println("after args: ", args)
-		// log.Println("params: ", p.debugMode, p.dryrunMode, p.templateMode, p.namespace, p.context, p.kubeconfig, p.labelKey, p.labelVal, p.overwrite, p.createnamespace)
+		// log.Println("labeler.go: after args: ", args)
+		// log.Println("labeler.go: params: ", p.debugMode, p.dryrunMode, p.templateMode, p.namespace, p.context, p.kubeconfig, p.labelKey, p.labelVal, p.overwrite, p.createnamespace)
 
 		// Run the command with the parsed flags
 		if args[0] == "k" || args[0] == "kubectl" {
 			cmd := exec.Command(args[0], args[1:]...)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				fmt.Printf("Error: %v, %v", err, string(out))
+				fmt.Printf("labeler.go: error: %v, %v", err, string(out))
 				os.Exit(1)
 			}
 
@@ -166,7 +171,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			if p.namespace != "" && p.namespace != "default" {
 				err = p.setLabelNamespace()
 				if err != nil {
-					log.Println("Error (set label namespace):", err)
+					log.Println("labeler.go: error (set label namespace):", err)
 					return err
 				}
 			}
@@ -175,10 +180,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			// run the original helm command without the extra labeler flags
 			output, err := p.runCmd("helm", args[1:])
 			if err != nil {
-				log.Println("Error (run helm):", err)
+				log.Println("labeler.go: error (run helm):", err)
 				os.Exit(1)
 			}
-			// log.Printf("helm output: %v\n", string(output))
+			// log.Printf("labeler.go: helm output: %v\n", string(output))
 
 			// now run helm as template and label the output
 			originalCommand := strings.Join(args, " ")
@@ -186,7 +191,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
 			output, err = p.runCmd("helm", modifiedCommandComponents)
 			if err != nil {
-				log.Println("Error (run helm):", err)
+				log.Println("labeler.go: error (run helm):", err)
 				os.Exit(1)
 			}
 
@@ -194,13 +199,13 @@ func (p ParamsStruct) aliasRun(args []string) error {
 
 			err = p.traverseInputAndLabel(strings.NewReader(string(output)), os.Stdout)
 			if err != nil {
-				log.Println("Error (to traverseInput):", err)
+				log.Println("labeler.go: error (to traverseInput):", err)
 				return err
 			}
 			if p.namespace != "" && p.namespace != "default" {
 				err = p.setLabelNamespace()
 				if err != nil {
-					log.Println("Error (set label namespace):", err)
+					log.Println("labeler.go: Error (set label namespace):", err)
 					return err
 				}
 			}
@@ -208,7 +213,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		}
 
 		if len(runResults.didNotLabel) > 0 {
-			log.Printf("\nThe following resources do not exist and can be labeled at a later time:\n\n")
+			log.Printf("\nlabeler.go: The following resources do not exist and can be labeled at a later time:\n\n")
 			for _, cmd := range runResults.didNotLabel {
 				log.Printf(cmd)
 			}
@@ -243,9 +248,9 @@ func (p ParamsStruct) setLabelNamespace() error {
 
 	// todo - this logic is not working right. should only label the namespace if installmode is true and dryrunmode is false - I am not doing something right in the following if statement
 	// because it is always true - and I am not sure why
-	// log.Printf("dryrunMode: %v, templateMode: %v, installMode: %v\n", p.dryrunMode, p.templateMode, p.installMode)
+	// log.Printf("labeler.go: dryrunMode: %v, templateMode: %v, installMode: %v\n", p.dryrunMode, p.templateMode, p.installMode)
 	if p.installMode && !p.dryrunMode {
-		// log.Printf("   🟡 patching namespace %q with %v=%v %q %q %q %v\n", p.namespace, p.labelKey, p.labelVal, gvr.Resource, gvr.Version, gvr.Group, string(patch))
+		// log.Printf("labeler.go: patching namespace %q with %v=%v %q %q %q %v\n", p.namespace, p.labelKey, p.labelVal, gvr.Resource, gvr.Version, gvr.Group, string(patch))
 		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), p.namespace, types.MergePatchType, patch, metav1.PatchOptions{})
 	}
 	if err != nil {
@@ -265,7 +270,7 @@ func traverseLine(line, namespace, context, kubeconfig string) {
 	pattern := "pattern" // Change this to your desired regex pattern
 	matched, err := regexp.MatchString(pattern, line)
 	if err != nil {
-		fmt.Println("Error:", err)
+		fmt.Println("labeler.go: error:", err)
 		return
 	}
 	if matched {
@@ -284,7 +289,7 @@ func traverseLine(line, namespace, context, kubeconfig string) {
 		// Run kubectl label command
 		cmd := exec.Command("kubectl", cmdArgs...)
 		if err := cmd.Run(); err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("labeler.go: error:", err)
 			return
 		}
 	}
@@ -296,18 +301,8 @@ func (p ParamsStruct) detectInput() error {
 	runResults.didNotLabel = []string{}
 
 	if isInputFromPipe() {
-		// // if input is from a pipe, traverseinput and label the
-		// // content of stdin
-		// log.Println("data is from pipe")
-		// // try to use output - might be yaml from --debug
-		// // if not --debug, then it is 'helm install', or 'helm template', or 'helm install --dry-run'
-		// // 'helm install' produces no yaml output
-		// // 'helm template' and 'helm install --dry-run' produce yaml - but they do not apply resources - and this might be the intent,
-		// // but labeling will fail if resources are not created, or are not present from a previous run of helm
-		// // '--debug' allows for install and yaml output - good combination we should check for first
-		// // 'template' and 'install --dry-run' are good also - but be prepared for failing to label if resources are missing
-		// // so, lets see if we got some yaml first - then behave nicely if labeling fails and instruct on how to run helm again with --debug piped into labeler
-		// // and, if there is no yaml input at all - return with info on how to use with helm with --debug and labeler
+		// if input is from a pipe, traverseinput and label the content of stdin
+		// log.Println("labeler.go: data is from pipe")
 		// // Read the input
 		scanner := bufio.NewScanner(os.Stdin)
 		var input []byte
@@ -327,32 +322,32 @@ func (p ParamsStruct) detectInput() error {
 
 		// Check for scanner error
 		if err := scanner.Err(); err != nil {
-			log.Printf("error reading input: %v", err)
+			log.Printf("labeler.go: error reading input: %v", err)
 			return nil
 		}
 
 		// Try parsing the input as YAML
 		if err := yaml.Unmarshal(input, &yamlData); err != nil {
-			// log.Printf("warning: no YAML input was detected %v", err)
+			// log.Printf("labeler.go: warning: no YAML input was detected %v", err)
 		}
 
 		// Check if YAML was provided
 		if yamlData != nil {
-			log.Println("YAML data detected in stdin")
+			// log.Println("labeler.go: YAML data detected in stdin")
 			// Do something with the YAML data received - don't need to use history hack in this case - we got valid YAML input from template, --dry-run, or --debug
 			err := p.traverseInputAndLabel(strings.NewReader(string(input)), os.Stdout)
 			if err != nil {
-				log.Println("Error (traverseinput):", err)
+				log.Println("labeler.go: error (traverseinput):", err)
 				return err
 			}
 		} else {
-			// log.Println("No YAML data detected in stdin, will try to run again with YAML output")
+			// log.Println("labeler.go: no YAML data detected in stdin, will try to run again with YAML output")
 			// time to do it the hard way - many may not like this approach (history hack) - the other options above are more than sufficient for most people's use
 			return p.helmOrKubectl(os.Stdin, os.Stdout, buffer)
 		}
 	} else {
 		// ...otherwise get the file
-		log.Println("data is from file")
+		log.Println("labeler.go: data is from file")
 		file, e := getFile()
 		if e != nil {
 			return e
@@ -362,7 +357,7 @@ func (p ParamsStruct) detectInput() error {
 	}
 
 	if len(runResults.didNotLabel) > 0 {
-		log.Printf("\nThe following resources do not exist and can be labeled at a later time:\n\n")
+		log.Printf("labeler.go: The following resources do not exist and can be labeled at a later time:\n\n")
 		for _, cmd := range runResults.didNotLabel {
 			log.Printf(cmd)
 		}
@@ -372,15 +367,15 @@ func (p ParamsStruct) detectInput() error {
 
 func getFile() (*os.File, error) {
 	if flags.filepath == "" {
-		return nil, errors.New("please input a file")
+		return nil, errors.New("labeler.go: please input a file")
 	}
 	if !fileExists(flags.filepath) {
-		return nil, errors.New("the file provided does not exist")
+		return nil, errors.New("labeler.go: the file provided does not exist")
 	}
 	file, e := os.Open(flags.filepath)
 	if e != nil {
 		return nil, errors.Wrapf(e,
-			"unable to read the file %s", flags.filepath)
+			"labeler.go: unable to read the file %s", flags.filepath)
 	}
 	return file, nil
 }
@@ -388,31 +383,29 @@ func getFile() (*os.File, error) {
 func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) error {
 	originalCommand, cmdFound, err := p.getOriginalCommandFromHistory()
 	if err != nil {
-		log.Println("Error (get history):", err)
+		log.Println("labeler.go: error (get history):", err)
 		// os.Exit(1)
 	}
 
-	// log.Printf("original command: %q\n\n", originalCommand)
+	// log.Printf("labeler.go: original command: %q\n\n", originalCommand)
 
 	if cmdFound == "helm" {
 		modifiedCommand := strings.Replace(originalCommand, "install", "template", 1)
 		modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
+		// log.Printf("labeler.go: modified command: %q\n", modifiedCommand)
+		// log.Printf("labeler.go: modified command components: %q\n", modifiedCommandComponents)
 		output, err := p.runCmd("helm", modifiedCommandComponents)
 		if err != nil {
-			log.Println("Error (run helm):", err)
+			// log.Println("labeler.go: error (running helm):", err)
 			os.Exit(1)
 		}
 
 		err = p.traverseInputAndLabel(strings.NewReader(string(output)), os.Stdout)
 		if err != nil {
-			log.Println("Error (to traverseInput):", err)
+			log.Println("labeler.go: error (to traverseInput):", err)
 			return err
 		}
-	} else if cmdFound == "kubectl" {
-		// this is plain kubectl
-		p.setLabelKubectl(input)
-	} else if cmdFound == "kustomize" {
-		// this is kustomize
+	} else if cmdFound == "kubectl" || cmdFound == "kustomize" {
 		p.setLabelKubectl(input)
 	}
 	return nil
@@ -443,7 +436,7 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 		err := decoder.Decode(&obj)
 		if err != nil {
 			if err.Error() != "EOF" && !strings.Contains(err.Error(), "did not find expected alphabetic or numeric character") {
-				log.Printf("   🔴 decoding error: %v\n%v\n", err, obj)
+				log.Printf("labeler.go: decoding error: %v\n%v\n", err, obj)
 			}
 			break // Reached end of file or error
 		}
@@ -451,21 +444,21 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 		// convert map to YAML byte representation
 		yamlBytes, err := yaml.Marshal(obj)
 		if err != nil {
-			log.Printf("Error marshaling YAML: %v\n", err)
+			log.Printf("labeler.go: error marshaling YAML: %v\n", err)
 			continue
 		}
 		runtimeObj, err := DecodeYAML(yamlBytes)
 		if err != nil {
-			// log.Printf("   🔴 error decoding yaml: %v\n", err)
+			// log.Printf("labeler.go: error decoding yaml: %v\n", err)
 			continue
 		}
 		gvk := runtimeObj.GroupVersionKind()
-		// log.Printf("G: %v, V: %v, K: %v, Name: %v", gvk.Group, gvk.Version, gvk.Kind, runtimeObj.GetName())
+		// log.Printf("labeler.go: G: %v, V: %v, K: %v, Name: %v", gvk.Group, gvk.Version, gvk.Kind, runtimeObj.GetName())
 
 		gvr, err := p.getGVRFromGVK(mapper, gvk)
 		if err != nil {
 			if p.debug {
-				log.Printf("   🟡 error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
+				log.Printf("labeler.go: error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
 			}
 		}
 
@@ -491,7 +484,7 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 	}
 
 	if flags.label == "" && p.labelKey == "" {
-		log.Println("No label provided")
+		log.Println("labeler.go: no label provided")
 		return
 	}
 	if flags.label != "" {
@@ -499,14 +492,14 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 	}
 
 	if len(matches) == 0 {
-		log.Println("No resources found to label")
+		log.Println("labeler.go: no resources found to label")
 		return
 	}
 
 	// iterate over matches and extract group version kind and object name
 	for _, match := range matches {
 		var labelCmd []string
-		// log.Printf("match: %v\n", match)
+		// log.Printf("labeler.go: match: %v\n", match)
 		// the first match group contains the group version kind and object name
 		groupVersionKindObjectName := match[1]
 		// split the string to get group version kind and object name
@@ -515,13 +508,13 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 		kind := gvkParts[0]
 		// group := gvkParts[1:]
 		objectName := parts[1]
-		// log.Printf("group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
+		// log.Printf("labeler.go: group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
 		labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal}
 		if flags.context != "" {
 			labelCmd = append(labelCmd, "--context="+flags.context)
 			// labelCmd = []string{"--context=" + flags.context, "-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal, "--overwrite"}
 		}
-		if p.overwrite {
+		if p.overwrite || flags.overwrite {
 			labelCmd = append(labelCmd, "--overwrite")
 		}
 		if p.context != "" {
@@ -531,9 +524,10 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 			labelCmd = append(labelCmd, "--kubeconfig="+p.kubeconfig)
 		}
 
+		// log.Printf("labeler.go: labelCmd: %v\n", labelCmd)
 		output, err := p.runCmd("kubectl", labelCmd)
 		if err != nil {
-			log.Printf("label did not apply due to error: %v", err)
+			// log.Printf("labeler.go: label did not apply due to error: %v", err)
 		} else {
 			if strings.Contains(string(output), "not labeled") {
 				log.Printf("  %v already has label %v=%v", strings.Split(string(output), " ")[0], p.labelKey, p.labelVal)
@@ -546,7 +540,7 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 
 func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVersionResource) error {
 	if flags.label == "" && p.labelKey == "" {
-		log.Println("No label provided")
+		log.Println("labeler.go: no label provided")
 		return nil
 	}
 	if flags.label != "" {
@@ -570,12 +564,12 @@ func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVer
 	if namespace == "" {
 		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 		// if err != nil {
-		// 	log.Printf("   🔴 error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
+		// 	log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
 		// }
 	} else {
 		_, err = p.labelerDynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 		// if err != nil {
-		// 	log.Printf("   🔴 error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
+		// 	log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
 		// }
 	}
 
@@ -624,38 +618,38 @@ func (p ParamsStruct) getOriginalCommandFromHistory() (string, string, error) {
 
 	err := cmd.Start()
 	if err != nil {
-		// log.Println("   🔴 error starting command:", err)
+		// log.Println("labeler.go: error starting command:", err)
 		return "", "", err
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		// log.Println("   🔴 error waiting for command to complete:", err)
+		// log.Println("labeler.go: error waiting for command to complete:", err)
 		return "", "", err
 	}
 
 	originalCmd, cmdFound, err := extractCmdFromHistory(string(outputBuf.Bytes()))
-	// log.Printf("command found: %q\n", cmdFound)
+	// log.Printf("labeler.go: command found: %q\n", cmdFound)
 	return originalCmd, cmdFound, err
 }
 
 func extractCmdFromHistory(historyText string) (string, string, error) {
 	// Find the index of the first semicolon
-	cmdFound := "helm"
+	cmdFound := ""
 	trimmedCommand := strings.TrimSpace(historyText)
 
 	// find the index of the first pipe character in the trimmed command
 	pipeIdx := strings.Index(trimmedCommand, "|")
 	if pipeIdx == -1 {
 		// return string(trimmedCommand), "", nil
-		// return "", log.Errorf("pipe character not found")
+		// return "", log.Errorf("labeler.go: pipe character not found")
 	} else {
 		trimmedCommand = trimmedCommand[:pipeIdx]
 	}
 
 	helmTextIndex := strings.Index(historyText, "helm")
 	if helmTextIndex == -1 {
-		// log.Printf("helm not found: %v", historyText)
+		// log.Printf("labeler.go: helm not found: %v", historyText)
 	} else {
 		cmdFound = "helm"
 		trimmedCommand = trimmedCommand[helmTextIndex:]
@@ -690,7 +684,7 @@ func main() {
 
 	currentUser, err := user.Current()
 	if err != nil {
-		log.Println("Error (current user):", err)
+		log.Println("labeler.go: error (current user):", err)
 		return
 	}
 	p.homeDir = currentUser.HomeDir
@@ -699,7 +693,7 @@ func main() {
 		args := os.Args[1:]
 		if len(args) > 0 {
 			if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
-				// log.Println("invoked as alias: ")
+				// log.Println("labeler.go: invoked as alias: ")
 				p.aliasRun(args)
 			}
 		}
@@ -712,7 +706,7 @@ func main() {
 			Long:          `Utility that automates the labeling of resources output from kubectl, kustomize, and helm`,
 			Run: func(cmd *cobra.Command, args []string) {
 				if flags.label == "" {
-					log.Println("No label provided")
+					log.Println("labeler.go: no label provided")
 					os.Exit(1)
 				}
 
@@ -727,8 +721,8 @@ func main() {
 		}
 
 		rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-			// cmd.Println(err)
-			// cmd.Println(cmd.UsageString())
+			cmd.Println(err)
+			cmd.Println(cmd.UsageString())
 			return SilentErr(err)
 		})
 		// rootCmd.Flags().StringVarP(&flags.filepath, flagsName.file, flagsName.fileShort, "", "path to the file")
@@ -737,6 +731,7 @@ func main() {
 		rootCmd.PersistentFlags().StringVarP(&flags.context, flagsName.context, flagsName.contextShort, "", "context to use")
 		rootCmd.PersistentFlags().BoolVarP(&flags.verbose, flagsName.verbose, flagsName.verboseShort, false, "log verbose output")
 		rootCmd.PersistentFlags().BoolVarP(&flags.debug, flagsName.debug, flagsName.debugShort, false, "debug mode")
+		rootCmd.PersistentFlags().BoolVarP(&flags.overwrite, flagsName.overwrite, flagsName.overwriteShort, false, "overwrite mode")
 
 		err = rootCmd.Execute()
 		if err != nil {
