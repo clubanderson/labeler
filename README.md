@@ -39,27 +39,27 @@ After hacking at this for some time, I decided to come up with 2 approaches to r
 (check out tests/test.sh for a full battery of tests)
 
 # Install with brew, or clone and build
-
+```
     brew tap clubanderson/labeler https://github.com/clubanderson/labeler
     brew install labeler
-    
+``` 
   - or -
-
+```
     git clone https://github.com/clubanderson/labeler
     cd labeler
     go build labeler.go labeler-helpers.go labeler-bp-creator.go  
     sudo cp labeler /usr/local/bin # if you want to use labeler from your path
-
+```
   - then -
-
+```
     alias kl="labeler kubectl"
     alias hl="labeler helm"
-
+```
   - optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
-
+```
     alias kl='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
     alias hl='labeler helm'     # you could also replace 'helm' (looking into this)
-
+```
 
 # 1 - Labeler as an alias to kubectl and helm
 
@@ -74,26 +74,26 @@ run kl as you would an kubectl command with arguments, and labeler will label al
 
   kustomize
 
-    kustomize with "" or "default" namespace (object were previously created and labeled)
+  kustomize with "" or "default" namespace (object were previously created and labeled)
 
     kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample-app --context=kind-kind --namespace=default --overwrite
       service/my-app-service already has label app.kubernetes.io/part-of=sample-app
       deployment.apps/my-app-deployment already has label app.kubernetes.io/part-of=sample-app
 
-    kustomize with "" or "default" namespace (object were previously created and but new label value provided)
+  kustomize with "" or "default" namespace (object were previously created and but new label value provided)
 
     kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite 
       🏷️ created and labeled object "my-app-service" in namespace "default" with app.kubernetes.io/part-of=sample
       🏷️ created and labeled object "my-app-deployment" in namespace "default" with app.kubernetes.io/part-of=sample
 
-    kustomize with a namespace other than "" or "default" (objects were previously created and labeled)
+  kustomize with a namespace other than "" or "default" (objects were previously created and labeled)
 
     kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample-app --context=kind-kind --namespace=temp --overwrite
       service/my-app-service already has label app.kubernetes.io/part-of=sample-app
       deployment.apps/my-app-deployment already has label app.kubernetes.io/part-of=sample-app
       🏷️ labeled object /v1/namespaces "temp" with app.kubernetes.io/part-of=sample-app
 
-    kustomize with a namespace other than "" or "default" (objects were previously created but new label value provided)
+  kustomize with a namespace other than "" or "default" (objects were previously created but new label value provided)
 
     kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite
       🏷️ created and labeled object "my-app-service" in namespace "temp" with app.kubernetes.io/part-of=sample
@@ -267,10 +267,28 @@ works like this...
 You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
 [Zero to Kube and GO in 90 Seconds](https://clubanderson.medium.com/zero-to-kube-and-go-in-90-seconds-f6f4730ab265)
 
-### to build:
-
-  go build labeler.go labeler-helpers.go labeler-bp-creator.go  
-  sudo cp labeler /usr/local/bin # if you want to use labeler from your path
+### Install with brew, or clone and build
+```
+    brew tap clubanderson/labeler https://github.com/clubanderson/labeler
+    brew install labeler
+``` 
+  - or -
+```
+    git clone https://github.com/clubanderson/labeler
+    cd labeler
+    go build labeler.go labeler-helpers.go labeler-bp-creator.go  
+    sudo cp labeler /usr/local/bin # if you want to use labeler from your path
+```
+  - then -
+```
+    alias kl="labeler kubectl"
+    alias hl="labeler helm"
+```
+  - optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
+```
+    alias kl='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
+    alias hl='labeler helm'     # you could also replace 'helm' (looking into this)
+```
   
 ### to test:
 
