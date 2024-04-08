@@ -21,7 +21,7 @@ class Labeler < Formula
 
       (if you want these to be permanent, add these to your shell profile, e.g. ~/.bashrc or ~/.zshrc, then source it)
 
-      Then just use `kl` or `hl` in place of `kubectl` or `helm` respectively. Add -l or --label to the end of the command to label ALL of the resources you apply.
+      Then just use `kl` or `hl` in place of `kubectl` or `helm` respectively. Add -l or --label= to the end of the command to label ALL of the resources you apply.
 
       example (kubectl):
         
