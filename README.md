@@ -272,19 +272,19 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
     brew tap clubanderson/labeler https://github.com/clubanderson/labeler
     brew install labeler
 ``` 
-  - or -
+  or -
 ```
     git clone https://github.com/clubanderson/labeler
     cd labeler
     go build labeler.go labeler-helpers.go labeler-bp-creator.go  
     sudo cp labeler /usr/local/bin # if you want to use labeler from your path
 ```
-  - then -
+  then -
 ```
     alias kl="labeler kubectl"
     alias hl="labeler helm"
 ```
-  - optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
+  optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
 ```
     alias kl='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
     alias hl='labeler helm'     # you could also replace 'helm' (looking into this)
