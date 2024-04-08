@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+var version = "0.2.0"
+
 type ParamsStruct struct {
 	homeDir              string
 	path                 string
@@ -192,7 +194,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			// now run helm as template and label the output
 			originalCommand := strings.Join(args, " ")
 			modifiedCommand := strings.Replace(originalCommand, " install ", " template ", 1)
-			modifiedCommand := strings.Replace(originalCommand, " upgrade ", " template ", 1)
+			modifiedCommand = strings.Replace(originalCommand, " upgrade ", " template ", 1)
 			modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
 			output, err = p.runCmd("helm", modifiedCommandComponents)
 			if err != nil {
@@ -696,6 +698,9 @@ func main() {
 	p.path = os.Getenv("PATH")
 	if !isInputFromPipe() {
 		args := os.Args[1:]
+		if args[0] == "--version" || args[0] == "-v" {
+			log.Printf("labeler version %v\n", version)
+		}
 		if len(args) > 0 {
 			if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
 				// log.Println("labeler.go: invoked as alias: ")
@@ -703,6 +708,8 @@ func main() {
 			}
 		}
 	} else {
+		var versionFlag bool
+
 		var rootCmd = &cobra.Command{
 			SilenceErrors: true,
 			SilenceUsage:  true,
@@ -710,6 +717,10 @@ func main() {
 			Short:         "label all kubernetes resources with provided key/value pair",
 			Long:          `Utility that automates the labeling of resources output from kubectl, kustomize, and helm`,
 			Run: func(cmd *cobra.Command, args []string) {
+				if versionFlag {
+					log.Printf("labeler version %v\n", version)
+					return
+				}
 				if flags.label == "" {
 					log.Println("labeler.go: no label provided")
 					os.Exit(1)
@@ -730,6 +741,7 @@ func main() {
 			cmd.Println(cmd.UsageString())
 			return SilentErr(err)
 		})
+		rootCmd.Flags().BoolVar(&versionFlag, "version", false, "print the version")
 		// rootCmd.Flags().StringVarP(&flags.filepath, flagsName.file, flagsName.fileShort, "", "path to the file")
 		rootCmd.PersistentFlags().StringVarP(&flags.label, flagsName.label, flagsName.labelShort, "", "label to apply to all resources e.g. -l app.kubernetes.io/part-of=sample-value")
 		rootCmd.PersistentFlags().StringVarP(&flags.kubeconfig, flagsName.kubeconfig, flagsName.kubeconfigShort, "", "kubeconfig to use")
