@@ -4,7 +4,7 @@
 ## A labeler for all kubectl, kustomize, and helm resources  
 
 <!-- [![Watch the video](https://youtu.be/lHcn3W7iuqA)](https://youtu.be/lHcn3W7iuqA) -->
-<img src="demo/labeler-0.2.gif" width="500" height="500">
+<img src="demo/labeler-0.2.gif" width="800">
 
 
 
