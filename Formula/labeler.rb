@@ -16,16 +16,10 @@ class Labeler < Formula
   def caveats
     <<~EOS
       To make using labeler more convenient, consider creating aliases:
-      
-      For Bash users:
-         \e[33mecho 'alias kl="labeler kubectl"'\e[0m >> ~/.bashrc
-         \e[33mecho 'alias hl="labeler helm"'\e[0m >> ~/.bashrc
-         \e[33msource ~/.bashrc\e[0m
-      
-      For Zsh users:
-         \e[33mecho 'alias kl="labeler kubectl"'\e[0m >> ~/.zshrc
-         \e[33mecho 'alias hl="labeler helm"'\e[0m >> ~/.zshrc
-         \e[33msource ~/.zshrc\e[0m
+      \e[33malias kl="labeler kubectl"\e[0m
+      \e[33malias hl="labeler helm"\e[0m
+
+      (if you want these to be permanent, add these to your shell profile, e.g. ~/.bashrc or ~/.zshrc, then source it)
 
       Then just use `kl` or `hl` in place of `kubectl` or `helm` respectively. Add -l or --label to the end of the command to label ALL of the resources you apply.
 
