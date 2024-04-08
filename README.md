@@ -3,7 +3,9 @@
 
 ## A labeler for all kubectl, kustomize, and helm resources  
 
-[![Watch the video](https://youtu.be/lHcn3W7iuqA)](https://youtu.be/lHcn3W7iuqA)
+<!-- [![Watch the video](https://youtu.be/lHcn3W7iuqA)](https://youtu.be/lHcn3W7iuqA) -->
+![Labeler in Action](demo/labeler-0.2.gif)
+
 
 **Challenge**: When working with Kubernetes objects it is necessary to find objects that are part of the same collection. Labels and annotations are a good way to flag objects so that they can be operated on as a collection. For instance, for an nginx package it would be useful to label the deployment, service, service account, and configmap that comes along with it. You could simply just use a namespace as a collection identifier. But a namespace will not help you identify cluster-scoped objects (which includes a namespace where the deployment, service, service account, and configmap reside) as part of a collection.
 
