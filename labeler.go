@@ -44,6 +44,7 @@ type ParamsStruct struct {
 	createnamespace      bool
 	dryrunMode           bool
 	debugMode            bool
+	upgradeMode          bool
 	templateMode         bool
 	installMode          bool
 	createBindingPolicy  bool
@@ -105,6 +106,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	p.debugMode = false
 	p.dryrunMode = false
 	p.templateMode = false
+	p.upgradeMode = false
 	p.namespace = ""
 	p.createBindingPolicy = false
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
@@ -130,6 +132,8 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				p.templateMode = true
 			} else if args[i] == "install" {
 				p.installMode = true
+			} else if args[i] == "upgrade" {
+				p.upgradeMode = true
 			}
 		}
 		// log.Println("labeler.go: before args: ", args)
@@ -187,7 +191,8 @@ func (p ParamsStruct) aliasRun(args []string) error {
 
 			// now run helm as template and label the output
 			originalCommand := strings.Join(args, " ")
-			modifiedCommand := strings.Replace(originalCommand, "install", "template", 1)
+			modifiedCommand := strings.Replace(originalCommand, " install ", " template ", 1)
+			modifiedCommand := strings.Replace(originalCommand, " upgrade ", " template ", 1)
 			modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
 			output, err = p.runCmd("helm", modifiedCommandComponents)
 			if err != nil {
