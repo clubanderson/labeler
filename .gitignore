@@ -5,3 +5,4 @@ labeler
 exec
 .DS_Store
 /.cache/
+/tests/.cache/
