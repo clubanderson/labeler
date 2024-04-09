@@ -29,13 +29,13 @@ import (
 var version = "0.7.0"
 
 type ParamsStruct struct {
-	homeDir              string
-	path                 string
-	labelerClientSet     *kubernetes.Clientset
-	labelerRestConfig    *rest.Config
-	labelerDynamicClient *dynamic.DynamicClient
-	flags                map[string]bool
-	params               map[string]string
+	homeDir       string
+	path          string
+	ClientSet     *kubernetes.Clientset
+	RestConfig    *rest.Config
+	DynamicClient *dynamic.DynamicClient
+	flags         map[string]bool
+	params        map[string]string
 }
 
 type resultsStruct struct {
@@ -214,7 +214,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				os.Exit(1)
 			}
 
-			p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
+			p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
 
 			// Format the output
 			output := strings.TrimSpace(string(out))
@@ -263,7 +263,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				os.Exit(1)
 			}
 
-			p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
+			p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
 
 			err = p.traverseInputAndLabel(strings.NewReader(string(output)), os.Stdout)
 			if err != nil {
@@ -332,7 +332,7 @@ func (p ParamsStruct) setLabelNamespace() error {
 
 	if p.flags["install"] && !p.flags["dry-run"] {
 		// log.Printf("labeler.go: patching namespace %q with %v=%v %q %q %q %v\n", p.namespace, p.params["labelKey"], p.params["labelVal"], gvr.Resource, gvr.Version, gvr.Group, string(patch))
-		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), namespace, types.MergePatchType, patch, metav1.PatchOptions{})
+		_, err = p.DynamicClient.Resource(gvr).Patch(context.TODO(), namespace, types.MergePatchType, patch, metav1.PatchOptions{})
 	}
 	if err != nil {
 		if p.flags["install"] && !p.flags["dry-run"] {
@@ -361,7 +361,7 @@ func getFile() (*os.File, error) {
 }
 
 func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
-	mapper, _ := p.createCachedDiscoveryClient(*p.labelerRestConfig)
+	mapper, _ := p.createCachedDiscoveryClient(*p.RestConfig)
 
 	var linesOfOutput []string
 
@@ -520,12 +520,12 @@ func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVer
 	}
 
 	if namespace == "" {
-		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
+		_, err = p.DynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 		// if err != nil {
 		// 	log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
 		// }
 	} else {
-		_, err = p.labelerDynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
+		_, err = p.DynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
 		// if err != nil {
 		// 	log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
 		// }
@@ -597,7 +597,7 @@ func main() {
 				if flags.verbose {
 					print = logOut
 				}
-				p.labelerClientSet, p.labelerRestConfig, p.labelerDynamicClient = p.switchContext()
+				p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
 
 				p.detectInput()
 			},
