@@ -31,7 +31,6 @@ var version = "0.2.0"
 type ParamsStruct struct {
 	homeDir              string
 	path                 string
-	debug                bool
 	labelerClientSet     *kubernetes.Clientset
 	labelerRestConfig    *rest.Config
 	labelerDynamicClient *dynamic.DynamicClient
@@ -409,7 +408,7 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 
 		gvr, err := p.getGVRFromGVK(mapper, gvk)
 		if err != nil {
-			if p.debug {
+			if p.flags["debug"] {
 				log.Printf("labeler.go: error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
 			}
 		}
