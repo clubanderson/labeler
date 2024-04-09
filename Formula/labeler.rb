@@ -1,7 +1,7 @@
 class Labeler < Formula
   desc "Utility that automates the labeling of resources output from kubectl, kustomize, and helm"
   homepage "https://github.com/clubanderson/labeler"
-  url "https://github.com/clubanderson/labeler/releases/download/v0.4.0/labeler"
+  url "https://github.com/clubanderson/labeler/releases/download/v0.5.0/labeler"
   # sha256 "ea8a03f413c0f22b172ed9257156ea77195bf7ebaefc3acd3775fcba9343fa35"
 
   def install

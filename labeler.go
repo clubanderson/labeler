@@ -211,6 +211,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			}
 			cmd := exec.Command(args[0], args[1:]...)
 			out, err := cmd.CombinedOutput()
+			fmt.Printf("%v", string(out))
 			if err != nil {
 				fmt.Printf("%v", string(out))
 				os.Exit(1)
@@ -240,6 +241,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		} else if args[0] == "helm" {
 			// run the original helm command without the extra labeler flags
 			output, err := p.runCmd("helm", args[1:])
+			fmt.Printf("%v", string(output))
 			if err != nil {
 				// log.Println("labeler.go: error (run helm):", err)
 				os.Exit(1)
@@ -558,15 +560,20 @@ func main() {
 	}
 	p.homeDir = currentUser.HomeDir
 	p.path = os.Getenv("PATH")
+
 	if !isInputFromPipe() {
-		args := os.Args[1:]
-		if args[0] == "--version" || args[0] == "-v" {
-			log.Printf("labeler version %v\n", version)
-		}
-		if len(args) > 0 {
-			if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
-				// log.Println("labeler.go: invoked as alias: ")
-				p.aliasRun(args)
+		if len(os.Args) <= 1 {
+			log.Printf("no arguments given, need usage here (TODO)")
+		} else {
+			args := os.Args[1:]
+			if args[0] == "--version" || args[0] == "-v" {
+				log.Printf("labeler version %v\n", version)
+			}
+			if len(args) > 0 {
+				if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
+					// log.Println("labeler.go: invoked as alias: ")
+					p.aliasRun(args)
+				}
 			}
 		}
 	} else {
