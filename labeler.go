@@ -34,8 +34,6 @@ type ParamsStruct struct {
 	labelerClientSet     *kubernetes.Clientset
 	labelerRestConfig    *rest.Config
 	labelerDynamicClient *dynamic.DynamicClient
-	labelKey             string
-	labelVal             string
 	flags                map[string]bool
 	params               map[string]string
 }
@@ -177,14 +175,14 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				i--
 			}
 			if strings.HasPrefix(args[i], "--label") {
-				p.labelKey = strings.Split(args[i], "=")[1]
-				p.labelVal = strings.Split(args[i], "=")[2]
+				p.params["labelKey"] = strings.Split(args[i], "=")[1]
+				p.params["labelVal"] = strings.Split(args[i], "=")[2]
 				args = append(args[:i], args[i+1:]...)
 				i--
 			}
 			if strings.HasPrefix(args[i], "-l") {
-				p.labelKey = strings.Split(args[i+1], "=")[0]
-				p.labelVal = strings.Split(args[i+1], "=")[1]
+				p.params["labelKey"] = strings.Split(args[i+1], "=")[0]
+				p.params["labelVal"] = strings.Split(args[i+1], "=")[1]
 				args = append(args[:i], args[i+2:]...)
 				i--
 				i--
@@ -310,7 +308,7 @@ func (p ParamsStruct) setLabelNamespace() error {
 		Resource: "namespaces",
 	}
 	labels := map[string]string{
-		p.labelKey: p.labelVal,
+		p.params["labelKey"]: p.params["labelVal"],
 	}
 	// serialize labels to JSON
 	patch, err := json.Marshal(map[string]interface{}{
@@ -333,16 +331,16 @@ func (p ParamsStruct) setLabelNamespace() error {
 	}
 
 	if p.flags["install"] && !p.flags["dry-run"] {
-		// log.Printf("labeler.go: patching namespace %q with %v=%v %q %q %q %v\n", p.namespace, p.labelKey, p.labelVal, gvr.Resource, gvr.Version, gvr.Group, string(patch))
+		// log.Printf("labeler.go: patching namespace %q with %v=%v %q %q %q %v\n", p.namespace, p.params["labelKey"], p.params["labelVal"], gvr.Resource, gvr.Version, gvr.Group, string(patch))
 		_, err = p.labelerDynamicClient.Resource(gvr).Patch(context.TODO(), namespace, types.MergePatchType, patch, metav1.PatchOptions{})
 	}
 	if err != nil {
 		if p.flags["install"] && !p.flags["dry-run"] {
-			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, namespace, p.labelKey, p.labelVal)
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, namespace, p.params["labelKey"], p.params["labelVal"])
 			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
 		}
 	} else {
-		log.Printf("  🏷️ labeled object %v/%v/%v %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, namespace, p.labelKey, p.labelVal)
+		log.Printf("  🏷️ labeled object %v/%v/%v %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, namespace, p.params["labelKey"], p.params["labelVal"])
 	}
 	return nil
 }
@@ -440,12 +438,12 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 		namespace = "default" // this needs to be the value given to kubectl - if empty, then it is default
 	}
 
-	if flags.label == "" && p.labelKey == "" {
+	if flags.label == "" && p.params["labelKey"] == "" {
 		log.Println("labeler.go: no label provided")
 		return
 	}
 	if flags.label != "" {
-		p.labelKey, p.labelVal = strings.Split(flags.label, "=")[0], strings.Split(flags.label, "=")[1]
+		p.params["labelKey"], p.params["labelVal"] = strings.Split(flags.label, "=")[0], strings.Split(flags.label, "=")[1]
 	}
 
 	if len(matches) == 0 {
@@ -466,10 +464,10 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 		// group := gvkParts[1:]
 		objectName := parts[1]
 		// log.Printf("labeler.go: group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
-		labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal}
+		labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, p.params["labelKey"] + "=" + p.params["labelVal"]}
 		if flags.context != "" {
 			labelCmd = append(labelCmd, "--context="+flags.context)
-			// labelCmd = []string{"--context=" + flags.context, "-n", namespace, "label", kind + "/" + objectName, p.labelKey + "=" + p.labelVal, "--overwrite"}
+			// labelCmd = []string{"--context=" + flags.context, "-n", namespace, "label", kind + "/" + objectName, p.params["labelKey"] + "=" + p.params["labelVal"], "--overwrite"}
 		}
 		if p.flags["overwrite"] || flags.overwrite {
 			labelCmd = append(labelCmd, "--overwrite")
@@ -490,25 +488,25 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 			// log.Printf("labeler.go: label did not apply due to error: %v", err)
 		} else {
 			if strings.Contains(string(output), "not labeled") {
-				log.Printf("  %v already has label %v=%v", strings.Split(string(output), " ")[0], p.labelKey, p.labelVal)
+				log.Printf("  %v already has label %v=%v", strings.Split(string(output), " ")[0], p.params["labelKey"], p.params["labelVal"])
 			} else {
-				log.Printf("  🏷️ created and labeled object %q in namespace %q with %v=%v\n", objectName, namespace, p.labelKey, p.labelVal)
+				log.Printf("  🏷️ created and labeled object %q in namespace %q with %v=%v\n", objectName, namespace, p.params["labelKey"], p.params["labelVal"])
 			}
 		}
 	}
 }
 
 func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVersionResource) error {
-	if flags.label == "" && p.labelKey == "" {
+	if flags.label == "" && p.params["labelKey"] == "" {
 		log.Println("labeler.go: no label provided")
 		return nil
 	}
 	if flags.label != "" {
-		p.labelKey, p.labelVal = strings.Split(flags.label, "=")[0], strings.Split(flags.label, "=")[1]
+		p.params["labelKey"], p.params["labelVal"] = strings.Split(flags.label, "=")[0], strings.Split(flags.label, "=")[1]
 	}
 
 	labels := map[string]string{
-		p.labelKey: p.labelVal,
+		p.params["labelKey"]: p.params["labelVal"],
 	}
 
 	// serialize labels to JSON
@@ -535,16 +533,16 @@ func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVer
 
 	if err != nil {
 		if namespace != "" {
-			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v -n %v\n", gvr.Resource, objectName, p.labelKey, p.labelVal, namespace)
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v -n %v\n", gvr.Resource, objectName, p.params["labelKey"], p.params["labelVal"], namespace)
 			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
 		} else {
-			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, objectName, p.labelKey, p.labelVal)
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, objectName, p.params["labelKey"], p.params["labelVal"])
 			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
 		}
 		return err
 	}
 
-	log.Printf("  🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.labelKey, p.labelVal)
+	log.Printf("  🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.params["labelKey"], p.params["labelVal"])
 	return nil
 }
 

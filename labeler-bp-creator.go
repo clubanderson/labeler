@@ -68,7 +68,7 @@ func (p ParamsStruct) createBP() {
 				ObjectSelectors: []ObjectSelector{
 					{
 						MatchLabels: map[string]string{
-							p.labelKey: p.labelVal,
+							p.params["labelKey"]: p.params["labelVal"],
 						},
 					},
 				},
