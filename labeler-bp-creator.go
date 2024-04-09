@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -11,9 +10,13 @@ import (
 )
 
 type BindingPolicy struct {
-	APIVersion                 string            `yaml:"apiVersion"`
-	Kind                       string            `yaml:"kind"`
-	Metadata                   Metadata          `yaml:"metadata"`
+	APIVersion string   `yaml:"apiVersion"`
+	Kind       string   `yaml:"kind"`
+	Metadata   Metadata `yaml:"metadata"`
+	Spec       Spec     `yaml:"spec"`
+}
+
+type Spec struct {
 	WantSingletonReportedState bool              `yaml:"wantSingletonReportedState"`
 	ClusterSelectors           []ClusterSelector `yaml:"clusterSelectors"`
 	Downsync                   []Downsync        `yaml:"downsync"`
@@ -67,20 +70,22 @@ func (p ParamsStruct) createBP() {
 		Metadata: Metadata{
 			Name: bpName,
 		},
-		WantSingletonReportedState: wantSingletonReportedState,
-		ClusterSelectors: []ClusterSelector{
-			{
-				MatchLabels: map[string]string{
-					clusterSelectorLabelKey: clusterSelectorLabelVal,
+		Spec: Spec{
+			WantSingletonReportedState: wantSingletonReportedState,
+			ClusterSelectors: []ClusterSelector{
+				{
+					MatchLabels: map[string]string{
+						clusterSelectorLabelKey: clusterSelectorLabelVal,
+					},
 				},
 			},
-		},
-		Downsync: []Downsync{
-			{
-				ObjectSelectors: []ObjectSelector{
-					{
-						MatchLabels: map[string]string{
-							p.params["labelKey"]: p.params["labelVal"],
+			Downsync: []Downsync{
+				{
+					ObjectSelectors: []ObjectSelector{
+						{
+							MatchLabels: map[string]string{
+								p.params["labelKey"]: p.params["labelVal"],
+							},
 						},
 					},
 				},
@@ -100,54 +105,9 @@ func (p ParamsStruct) createBP() {
 
 	if p.params["bp-wds"] != "" {
 		log.Printf("  🚀 Attempting to create BindingPolicy object %q in WDS namespace %q", bpName, p.params["bp-wds"])
-		p.createBPobj(bindingPolicy, gvk, yamlData, bpName)
+		objResource := "bindingpolicies"
+		p.createObjForPlugin(gvk, yamlData, bpName, objResource)
 	} else {
 		fmt.Println(string(yamlData))
-	}
-}
-
-func (p ParamsStruct) createBPobj(bindingPolicy BindingPolicy, gvk schema.GroupVersionKind, yamlData []byte, bpName string) {
-	bpResource := "bindingpolicies"
-
-	// Unmarshal YAML data into a map
-	var bindingPolicyMap map[string]interface{}
-	err := yaml.Unmarshal([]byte(yamlData), &bindingPolicyMap)
-	if err != nil {
-		fmt.Println("Error unmarshaling YAML:", err)
-		return
-	}
-
-	// Marshal the map into JSON
-	objectJSON, err := json.Marshal(bindingPolicyMap)
-	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
-		return
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    gvk.Group,
-		Version:  gvk.Version,
-		Resource: bpResource,
-	}
-
-	wdsNS := p.params["bp-wds"]
-
-	nsgvr := schema.GroupVersionResource{
-		Group:    "",
-		Version:  "v1",
-		Resource: "namespaces",
-	}
-
-	if p.flags["debug"] {
-		log.Printf("  ℹ️  object info %v/%v/%v %v\n", nsgvr.Group, nsgvr.Version, nsgvr.Resource, wdsNS)
-	}
-	_, err = p.getObject(p.DynamicClient, "", nsgvr, wdsNS)
-	if err != nil {
-		log.Printf("  🔴 failed to create BindingPolicy %q, WDS namespace %q does not exist. Is KubeStellar installed?\n", bpName, wdsNS)
-	} else {
-		_, err = p.createObject(p.DynamicClient, wdsNS, gvr, objectJSON)
-		if err != nil {
-			log.Printf("  🔴 failed to create BindingPolicy object %q in WDS namespace %v. Is KubeStellar installed?\n", bpName, wdsNS)
-		}
 	}
 }

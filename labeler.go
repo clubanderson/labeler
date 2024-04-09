@@ -175,6 +175,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				args = append(args[:i], args[i+1:]...)
 				i--
 			}
+			if strings.HasPrefix(args[i], "--mw-") {
+				args = append(args[:i], args[i+1:]...)
+				i--
+			}
 			if strings.HasPrefix(args[i], "--remote-") {
 				args = append(args[:i], args[i+1:]...)
 				i--
@@ -306,6 +310,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		if p.flags["bp-create"] {
 			log.Println()
 			p.createBP()
+		}
+		if p.flags["mw-create"] {
+			log.Println()
+			p.createMW()
 		}
 		if p.params["remote-contexts"] != "" {
 			log.Println()

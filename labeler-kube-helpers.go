@@ -3,15 +3,61 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
+	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )
+
+func (p ParamsStruct) createObjForPlugin(gvk schema.GroupVersionKind, yamlData []byte, objName, objResource string) {
+	// Unmarshal YAML data into a map
+	var objMap map[string]interface{}
+	err := yaml.Unmarshal([]byte(yamlData), &objMap)
+	if err != nil {
+		fmt.Println("Error unmarshaling YAML:", err)
+		return
+	}
+
+	// Marshal the map into JSON
+	objectJSON, err := json.Marshal(objMap)
+	if err != nil {
+		fmt.Println("Error marshaling JSON:", err)
+		return
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: objResource,
+	}
+
+	wdsNS := p.params["mw-ns"]
+
+	nsgvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "namespaces",
+	}
+
+	if p.flags["debug"] {
+		log.Printf("  ℹ️  object info %v/%v/%v %v\n", nsgvr.Group, nsgvr.Version, nsgvr.Resource, wdsNS)
+	}
+	_, err = p.getObject(p.DynamicClient, "", nsgvr, wdsNS)
+	if err != nil {
+		log.Printf("  🔴 failed to create %v %q, namespace %q does not exist. Is KubeStellar installed?\n", objResource, objName, wdsNS)
+	} else {
+		_, err = p.createObject(p.DynamicClient, wdsNS, gvr, objectJSON)
+		if err != nil {
+			log.Printf("  🔴 failed to create %v object %q in namespace %v. Is KubeStellar installed?\n", objResource, objName, wdsNS)
+		}
+	}
+}
 
 func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, namespace string, gvr schema.GroupVersionResource, objectJSON []byte) (string, error) {
 	objToCreate := &unstructured.Unstructured{}
