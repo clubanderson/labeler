@@ -36,26 +36,29 @@ type RawExtension struct {
 }
 
 func (p ParamsStruct) createMW() {
-	mwName := "change-me"
-	mwGroup := "work.open-cluster-management.io"
-	mwVersion := "v1"
-	mwKind := "ManifestWork"
+	n := "change-me"
+	nArg := "mw-name"
+	nsArg := "mw-ns"
+	g := "work.open-cluster-management.io"
+	v := "v1"
+	k := "ManifestWork"
+	r := "manifestworks"
 
 	gvk := schema.GroupVersionKind{
-		Group:   mwGroup,
-		Version: mwVersion,
-		Kind:    mwKind,
+		Group:   g,
+		Version: v,
+		Kind:    k,
 	}
 
-	if p.params["mw-name"] != "" {
-		mwName = p.params["mw-name"]
+	if p.params[nArg] != "" {
+		n = p.params[nArg]
 	}
 
 	manifestWork := ManifestWork{
 		APIVersion: gvk.Group + "/" + gvk.Version,
 		Kind:       gvk.Kind,
 		Metadata: mwMetadata{
-			Name: mwName,
+			Name: n,
 		},
 		Spec: mwSpec{
 			Workload: Workload{
@@ -63,6 +66,7 @@ func (p ParamsStruct) createMW() {
 			},
 		},
 	}
+	// need a loop to fill in the manifests with the objects from debug run of kubectl or helm
 
 	yamlData, err := yaml.Marshal(manifestWork)
 	if err != nil {
@@ -71,13 +75,12 @@ func (p ParamsStruct) createMW() {
 	}
 
 	if p.flags["debug"] {
-		log.Println("mw-ns flag:", p.params["mw-ns"])
+		log.Printf("%v parameter: %v", nsArg, p.params[nsArg])
 	}
 
 	if p.params["bp-wds"] != "" {
-		log.Printf("  🚀 Attempting to create ManifestWork object %q in WDS namespace %q", mwName, p.params["mw-wds"])
-		objResource := "manifestworks"
-		p.createObjForPlugin(gvk, yamlData, mwName, objResource)
+		log.Printf("  🚀 Attempting to create %v object %q in WDS namespace %q", k, n, p.params[nsArg])
+		p.createObjForPlugin(gvk, yamlData, n, r)
 	} else {
 		fmt.Println(string(yamlData))
 	}

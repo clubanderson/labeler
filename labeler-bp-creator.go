@@ -39,22 +39,25 @@ type ObjectSelector struct {
 }
 
 func (p ParamsStruct) createBP() {
-	bpName := "change-me"
+	n := "change-me"
+	nArg := "bp-name"
+	nsArg := "bp-ns"
 	clusterSelectorLabelKey := "location-group"
 	clusterSelectorLabelVal := "edge"
 	wantSingletonReportedState := false
-	bpGroup := "control.kubestellar.io"
-	bpVersion := "v1alpha1"
-	bpKind := "BindingPolicy"
+	g := "control.kubestellar.io"
+	v := "v1alpha1"
+	k := "BindingPolicy"
+	r := "bindingpolicies"
 
 	gvk := schema.GroupVersionKind{
-		Group:   bpGroup,
-		Version: bpVersion,
-		Kind:    bpKind,
+		Group:   g,
+		Version: v,
+		Kind:    k,
 	}
 
-	if p.params["bp-name"] != "" {
-		bpName = p.params["bp-name"]
+	if p.params[nArg] != "" {
+		n = p.params[nArg]
 	}
 	if p.params["bp-clusterselector"] != "" {
 		clusterSelectorLabelKey = strings.Split(p.params["bp-clusterselector"], "=")[0]
@@ -68,7 +71,7 @@ func (p ParamsStruct) createBP() {
 		APIVersion: gvk.Group + "/" + gvk.Version,
 		Kind:       gvk.Kind,
 		Metadata: Metadata{
-			Name: bpName,
+			Name: n,
 		},
 		Spec: Spec{
 			WantSingletonReportedState: wantSingletonReportedState,
@@ -100,13 +103,12 @@ func (p ParamsStruct) createBP() {
 	}
 
 	if p.flags["debug"] {
-		log.Println("bp-wds flag:", p.params["bp-wds"])
+		log.Printf("%v parameter: %v", nsArg, p.params[nsArg])
 	}
 
 	if p.params["bp-wds"] != "" {
-		log.Printf("  🚀 Attempting to create BindingPolicy object %q in WDS namespace %q", bpName, p.params["bp-wds"])
-		objResource := "bindingpolicies"
-		p.createObjForPlugin(gvk, yamlData, bpName, objResource)
+		log.Printf("  🚀 Attempting to create %v object %q in WDS namespace %q", k, n, p.params[nsArg])
+		p.createObjForPlugin(gvk, yamlData, n, r)
 	} else {
 		fmt.Println(string(yamlData))
 	}
