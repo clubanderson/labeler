@@ -154,8 +154,28 @@ run kl as you would an kubectl command with arguments, and labeler will label al
       🏷️ labeled object apps/v1/deployments "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
       🏷️ labeled object /v1/namespaces "sealed-secrets" with app.kubernetes.io/part-of=sample-app
 
+# Labeler with a sample OCM ManifestWork as output
+Not entirely working, but a sample manifestwork is output (TODO: output only right now)
 
-# Labeler with a sample KubeStellar BindingPolicy as output
+  with kubectl and kustomize:
+  
+    kl apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite --mw-create                    kind-kind/default ⎈ 
+
+    deployment.apps/my-app-deployment2 unchanged
+    service/my-app-service2 unchanged
+      deployment.apps/my-app-deployment2 already has label app.kubernetes.io/part-of=sample
+      service/my-app-service2 already has label app.kubernetes.io/part-of=sample
+      🏷️ labeled object /v1/namespaces "temp" with app.kubernetes.io/part-of=sample
+
+    apiVersion: work.open-cluster-management.io/v1
+    kind: ManifestWork
+    metadata:
+        name: change-me
+    spec:
+        workload:
+            manifests: []
+
+# Labeler with a KubeStellar BindingPolicy as output
 You can give command line arguments to trigger the output (and creation) of a bindingpolicy for use with KubeStellar
 
     --bp-create 
@@ -255,7 +275,7 @@ You can give command line arguments to trigger the output (and creation) of a bi
                 app.kubernetes.io/part-of: sample-app
 
 # Labeler with deployment to multiple contexts
-If your in a jam and need kubectl or helm to deploy to multiple context, just add "--remote-contexts=wds1,wds2" to quickly deploy packages to multiple remote contexts
+If your in a jam and need kubectl or helm to deploy to multiple context, just add "--remote-contexts=wds1,wds2" to quickly deploy packages to multiple remote contexts. Assumes all contexts are in the original kubeconfig. (TODO - add params list of --kubeconfig in --remote-kubeconfigs and iterate to find the right one, then break)
 
   with kubectl:
 
