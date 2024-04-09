@@ -156,23 +156,103 @@ run kl as you would an kubectl command with arguments, and labeler will label al
 
 
 # Labeler with a sample KubeStellar BindingPolicy as output
+You can give command line arguments to trigger the output (and creation) of a bindingpolicy for use with KubeStellar
 
-    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --create-bp
-      service/my-app-service already has label app.kubernetes.io/part-of=sample
-      deployment.apps/my-app-deployment already has label app.kubernetes.io/part-of=sample
+    --bp-create 
+    --bp-clusterselector=location-group=edge 
+    --bp-wantsingletonreportedstate 
+    --bp-name=my-test
+    --bp-wds=wds1 (this triggers an attempt to create the bindingpolicy object)
+
+
+  with kubectl and kustomize:
+
+    kl --context=kind-kind apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample2 -n temp --overwrite --bp-create --bp-clusterselector=location-group=edge --bp-wantsingletonreportedstate --bp-name=my-test --bp-wds=wds1
+
+    deployment.apps/my-app-deployment2 unchanged
+    service/my-app-service2 unchanged
+      deployment.apps/my-app-deployment2 already has label app.kubernetes.io/part-of=sample2
+      service/my-app-service2 already has label app.kubernetes.io/part-of=sample2
+      🏷️ labeled object /v1/namespaces "temp" with app.kubernetes.io/part-of=sample2
+
+      🚀 Attempting to create BindingPolicy object "my-test" in WDS namespace "wds1"
+
+
+  with helm:
+
+    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --bp-create --bp-clusterselector=location-group=edge --bp-wantsingletonreportedstate --bp-name=my-test; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+
+    NAME: sealed-secrets
+    LAST DEPLOYED: Tue Apr  9 12:01:43 2024
+    NAMESPACE: sealed-secrets
+    STATUS: deployed
+    REVISION: 1
+    TEST SUITE: None
+    NOTES:
+    ** Please be patient while the chart is being deployed **
+
+    You should now be able to create sealed secrets.
+
+    1. Install the client-side tool (kubeseal) as explained in the docs below:
+
+        https://github.com/bitnami-labs/sealed-secrets#installation-from-source
+
+    2. Create a sealed secret file running the command below:
+
+        kubectl create secret generic secret-name --dry-run=client --from-literal=foo=bar -o [json|yaml] | \
+        kubeseal \
+          --controller-name=sealed-secrets \
+          --controller-namespace=sealed-secrets \
+          --format yaml > mysealedsecret.[json|yaml]
+
+    The file mysealedsecret.[json|yaml] is a commitable file.
+
+    If you would rather not need access to the cluster to generate the sealed secret you can run:
+
+        kubeseal \
+          --controller-name=sealed-secrets \
+          --controller-namespace=sealed-secrets \
+          --fetch-cert > mycert.pem
+
+    to retrieve the public cert used for encryption and store it locally. You can then run 'kubeseal --cert mycert.pem' instead to use the local cert e.g.
+
+        kubectl create secret generic secret-name --dry-run=client --from-literal=foo=bar -o [json|yaml] | \
+        kubeseal \
+          --controller-name=sealed-secrets \
+          --controller-namespace=sealed-secrets \
+          --format [json|yaml] --cert mycert.pem > mysealedsecret.[json|yaml]
+
+    3. Apply the sealed secret
+
+        kubectl create -f mysealedsecret.[json|yaml]
+
+    Running 'kubectl get secret secret-name -o [json|yaml]' will show the decrypted secret that was generated from the sealed secret.
+
+    Both the SealedSecret and generated Secret must have the same name and namespace.
+      🏷️ labeled object /v1/serviceaccounts "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object rbac.authorization.k8s.io/v1/clusterroles "secrets-unsealer" in namespace "" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object rbac.authorization.k8s.io/v1/clusterrolebindings "sealed-secrets" in namespace "" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object rbac.authorization.k8s.io/v1/roles "sealed-secrets-key-admin" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object rbac.authorization.k8s.io/v1/roles "sealed-secrets-service-proxier" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object rbac.authorization.k8s.io/v1/rolebindings "sealed-secrets-key-admin" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object rbac.authorization.k8s.io/v1/rolebindings "sealed-secrets-service-proxier" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object /v1/services "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object /v1/services "sealed-secrets-metrics" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object apps/v1/deployments "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object /v1/namespaces "sealed-secrets" with app.kubernetes.io/part-of=sample-app
 
     apiVersion: control.kubestellar.io/v1alpha1
     kind: BindingPolicy
     metadata:
-      name: wec-kwasm-bindingpolicy
+        name: my-test
     wantSingletonReportedState: true
     clusterSelectors:
-    - matchLabels:
-        location-group: edge
+        - matchLabels:
+            location-group: edge
     downsync:
-    - objectSelectors:
-      - matchLabels:
-          app.kubernetes.io/part-of: sample
+        - objectSelectors:
+            - matchLabels:
+                app.kubernetes.io/part-of: sample-app
 
 # 2 - a command that works kinda like grep. You can run grep against a file as input or run grep against a command as output (linux pipe command)
 
@@ -369,102 +449,3 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
         🏷️ labeled object /v1/services "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-value
         🏷️ labeled object /v1/services "sealed-secrets-metrics" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-value
         🏷️ labeled object apps/v1/deployments "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-value
-
-# For KubeStellar users
-You can give command line arguments to trigger the output (and creation) of a bindingpolicy for use with KubeStellar
-
-    --bp-create 
-    --bp-clusterselector=location-group=edge 
-    --bp-wantsingletonreportedstate 
-    --bp-name=my-test
-    --bp-wds=wds1 (this triggers an attempt to create the bindingpolicy object)
-
-
-  with kubectl and kustomize:
-
-    kl --context=kind-kind apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample2 -n temp --overwrite --bp-create --bp-clusterselector=location-group=edge --bp-wantsingletonreportedstate --bp-name=my-test --bp-wds=wds1
-
-    deployment.apps/my-app-deployment2 unchanged
-    service/my-app-service2 unchanged
-      deployment.apps/my-app-deployment2 already has label app.kubernetes.io/part-of=sample2
-      service/my-app-service2 already has label app.kubernetes.io/part-of=sample2
-      🏷️ labeled object /v1/namespaces "temp" with app.kubernetes.io/part-of=sample2
-
-      🚀 Attempting to create BindingPolicy object "my-test" in WDS namespace "wds1"
-
-
-  with helm:
-
-    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --bp-create --bp-clusterselector=location-group=edge --bp-wantsingletonreportedstate --bp-name=my-test; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
-
-    NAME: sealed-secrets
-    LAST DEPLOYED: Tue Apr  9 12:01:43 2024
-    NAMESPACE: sealed-secrets
-    STATUS: deployed
-    REVISION: 1
-    TEST SUITE: None
-    NOTES:
-    ** Please be patient while the chart is being deployed **
-
-    You should now be able to create sealed secrets.
-
-    1. Install the client-side tool (kubeseal) as explained in the docs below:
-
-        https://github.com/bitnami-labs/sealed-secrets#installation-from-source
-
-    2. Create a sealed secret file running the command below:
-
-        kubectl create secret generic secret-name --dry-run=client --from-literal=foo=bar -o [json|yaml] | \
-        kubeseal \
-          --controller-name=sealed-secrets \
-          --controller-namespace=sealed-secrets \
-          --format yaml > mysealedsecret.[json|yaml]
-
-    The file mysealedsecret.[json|yaml] is a commitable file.
-
-    If you would rather not need access to the cluster to generate the sealed secret you can run:
-
-        kubeseal \
-          --controller-name=sealed-secrets \
-          --controller-namespace=sealed-secrets \
-          --fetch-cert > mycert.pem
-
-    to retrieve the public cert used for encryption and store it locally. You can then run 'kubeseal --cert mycert.pem' instead to use the local cert e.g.
-
-        kubectl create secret generic secret-name --dry-run=client --from-literal=foo=bar -o [json|yaml] | \
-        kubeseal \
-          --controller-name=sealed-secrets \
-          --controller-namespace=sealed-secrets \
-          --format [json|yaml] --cert mycert.pem > mysealedsecret.[json|yaml]
-
-    3. Apply the sealed secret
-
-        kubectl create -f mysealedsecret.[json|yaml]
-
-    Running 'kubectl get secret secret-name -o [json|yaml]' will show the decrypted secret that was generated from the sealed secret.
-
-    Both the SealedSecret and generated Secret must have the same name and namespace.
-      🏷️ labeled object /v1/serviceaccounts "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object rbac.authorization.k8s.io/v1/clusterroles "secrets-unsealer" in namespace "" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object rbac.authorization.k8s.io/v1/clusterrolebindings "sealed-secrets" in namespace "" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object rbac.authorization.k8s.io/v1/roles "sealed-secrets-key-admin" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object rbac.authorization.k8s.io/v1/roles "sealed-secrets-service-proxier" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object rbac.authorization.k8s.io/v1/rolebindings "sealed-secrets-key-admin" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object rbac.authorization.k8s.io/v1/rolebindings "sealed-secrets-service-proxier" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object /v1/services "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object /v1/services "sealed-secrets-metrics" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object apps/v1/deployments "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-      🏷️ labeled object /v1/namespaces "sealed-secrets" with app.kubernetes.io/part-of=sample-app
-
-    apiVersion: control.kubestellar.io/v1alpha1
-    kind: BindingPolicy
-    metadata:
-        name: my-test
-    wantSingletonReportedState: true
-    clusterSelectors:
-        - matchLabels:
-            location-group: edge
-    downsync:
-        - objectSelectors:
-            - matchLabels:
-                app.kubernetes.io/part-of: sample-app
