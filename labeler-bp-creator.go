@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -32,17 +33,33 @@ type ObjectSelector struct {
 }
 
 func (p ParamsStruct) createBP() {
+	bpName := "change-me"
+	clusterSelectorLabelKey := "location-group"
+	clusterSelectorLabelVal := "edge"
+	wantSingletonReportedState := false
+
+	if p.params["bp-name"] != "" {
+		bpName = p.params["bp-name"]
+	}
+	if p.params["bp-clusterselector"] != "" {
+		clusterSelectorLabelKey = strings.Split(p.params["bp-clusterselector"], "=")[0]
+		clusterSelectorLabelVal = strings.Split(p.params["bp-clusterselector"], "=")[1]
+	}
+	if p.flags["bp-wantsingletonreportedstate"] {
+		wantSingletonReportedState = true
+	}
+
 	bindingPolicy := BindingPolicy{
 		APIVersion: "control.kubestellar.io/v1alpha1",
 		Kind:       "BindingPolicy",
 		Metadata: Metadata{
-			Name: "wec-kwasm-bindingpolicy",
+			Name: bpName,
 		},
-		WantSingletonReportedState: true,
+		WantSingletonReportedState: wantSingletonReportedState,
 		ClusterSelectors: []ClusterSelector{
 			{
 				MatchLabels: map[string]string{
-					"location-group": "edge",
+					clusterSelectorLabelKey: clusterSelectorLabelVal,
 				},
 			},
 		},
