@@ -254,6 +254,44 @@ You can give command line arguments to trigger the output (and creation) of a bi
             - matchLabels:
                 app.kubernetes.io/part-of: sample-app
 
+# Labeler with deployment to multiple contexts
+If your in a jam and need kubectl or helm to deploy to multiple context, just add "--remote-contexts=wds1,wds2" to quickly deploy packages to multiple remote contexts
+
+  with kubectl:
+
+    kl apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite --remote-contexts=wds1,wds2  kind-kind/default ⎈ 
+
+    deployment.apps/my-app-deployment2 unchanged
+    service/my-app-service2 unchanged
+      deployment.apps/my-app-deployment2 already has label app.kubernetes.io/part-of=sample
+      service/my-app-service2 already has label app.kubernetes.io/part-of=sample
+      🏷️ labeled object /v1/namespaces "temp" with app.kubernetes.io/part-of=sample
+
+    attempting deployment to contexts: [wds1 wds2]
+    error: context "wds1" does not exist
+    exit status 1
+    error: context "wds2" does not exist
+    exit status 1
+
+  with helm:
+  
+    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --remote-contexts=wds1,wds2; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets 
+    NAME: sealed-secrets
+    LAST DEPLOYED: Tue Apr  9 13:29:24 2024
+    NAMESPACE: sealed-secrets
+    ...
+    Both the SealedSecret and generated Secret must have the same name and namespace.
+      🏷️ labeled object /v1/serviceaccounts "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object rbac.authorization.k8s.io/v1/clusterroles "secrets-unsealer" in namespace "" with app.kubernetes.io/part-of=sample-app
+      🏷️ labeled object /v1/namespaces "sealed-secrets" with app.kubernetes.io/part-of=sample-app
+    ...
+
+    attempting deployment to contexts: [wds1 wds2]
+    Error: INSTALLATION FAILED: Kubernetes cluster unreachable: context "wds1" does not exist
+    exit status 1
+    Error: INSTALLATION FAILED: Kubernetes cluster unreachable: context "wds2" does not exist
+    exit status 1
+
 # 2 - a command that works kinda like grep. You can run grep against a file as input or run grep against a command as output (linux pipe command)
 
     grep "apple" example.txt

@@ -31,6 +31,7 @@ var version = "0.7.0"
 type ParamsStruct struct {
 	homeDir       string
 	path          string
+	originalCmd   string
 	ClientSet     *kubernetes.Clientset
 	RestConfig    *rest.Config
 	DynamicClient *dynamic.DynamicClient
@@ -174,6 +175,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				args = append(args[:i], args[i+1:]...)
 				i--
 			}
+			if strings.HasPrefix(args[i], "--remote-") {
+				args = append(args[:i], args[i+1:]...)
+				i--
+			}
 			if strings.HasPrefix(args[i], "--label") {
 				p.params["labelKey"] = strings.Split(args[i], "=")[1]
 				p.params["labelVal"] = strings.Split(args[i], "=")[2]
@@ -206,6 +211,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			if p.flags["debug"] {
 				log.Println("labeler.go: [debug] after args: ", args)
 			}
+
+			originalCommand := strings.Join(args, " ")
+			p.originalCmd = originalCommand
+
 			cmd := exec.Command(args[0], args[1:]...)
 			out, err := cmd.CombinedOutput()
 			fmt.Printf("%v", string(out))
@@ -240,13 +249,15 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			output, err := p.runCmd("helm", args[1:])
 			fmt.Printf("%v", string(output))
 			if err != nil {
-				// log.Println("labeler.go: error (run helm):", err)
+				log.Println(err)
 				os.Exit(1)
 			}
 			// log.Printf("labeler.go: helm output: %v\n", string(output))
 
 			// now run helm as template and label the output
 			originalCommand := strings.Join(args, " ")
+			p.originalCmd = originalCommand
+
 			if p.flags["debug"] {
 				log.Printf("labeler.go: [debug] original command: %v\n", originalCommand)
 			}
@@ -295,6 +306,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		if p.flags["bp-create"] {
 			log.Println()
 			p.createBP()
+		}
+		if p.params["remote-contexts"] != "" {
+			log.Println()
+			p.remoteDeployTo()
 		}
 
 	}
