@@ -38,7 +38,11 @@ type ObjectSelector struct {
 	MatchLabels map[string]string `yaml:"matchLabels"`
 }
 
-func (p ParamsStruct) createBP() {
+func (p ParamsStruct) PluginCreateBP(reflect bool) []string {
+	// function must be exportable (capitalize first letter of function name) to be discovered by labeler
+	if reflect {
+		return []string{"l-bp-name,string,name for the bindingpolicy (usage: --l-bp-name=hello-world)", "l-bp-ns,string,namespace for the bindingpolicies (usage: --l-bp-ns=default)", "l-bp-clusterselector,string,value of clusterSelector (usage: --l-bp-clusterselector=app.kubernetes.io/part-of=sample-app)", "l-bp-wantsingletonreportedstate,flag,do you prefer singleton status for an object, if not, then grouped status will be recorded", "l-bp-wds,string,where should the object be created (usage: --l-bp-wds=namespace)"}
+	}
 	n := "change-me"
 	nArg := "l-bp-name"
 	nsArg := "l-bp-ns"
@@ -99,7 +103,7 @@ func (p ParamsStruct) createBP() {
 	yamlData, err := yaml.Marshal(bindingPolicy)
 	if err != nil {
 		fmt.Println("Error marshaling YAML:", err)
-		return
+		return []string{}
 	}
 
 	if p.flags["l-debug"] {
@@ -112,4 +116,5 @@ func (p ParamsStruct) createBP() {
 	} else {
 		fmt.Println(string(yamlData))
 	}
+	return []string{}
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -39,6 +40,8 @@ type ParamsStruct struct {
 	flags         map[string]bool
 	params        map[string]string
 	resources     map[string]string
+	pluginArgs    map[string][]string
+	pluginPtrs    map[string]reflect.Value
 }
 
 type resultsStruct struct {
@@ -94,6 +97,11 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	p.flags = make(map[string]bool)
 	p.params = make(map[string]string)
 	p.resources = make(map[string]string)
+	p.pluginArgs = make(map[string][]string)
+	p.pluginArgs["labeler"] = []string{"label,string,label key and value to be applied to objects (usage: --label=app.kubernetes.io/part-of=sample)"}
+	p.pluginPtrs = make(map[string]reflect.Value)
+
+	p.getPluginNamesAndArgs()
 
 	p.flags[args[0]] = true
 	for i, arg := range args {
@@ -206,9 +214,6 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		// Run the command with the parsed flags
 
 		if args[0] == "k" || args[0] == "kubectl" {
-			// for i := 0; i < len(args); i++ {
-			// 	log.Printf("args: %v", args[i])
-			// }
 			if p.flags["l-debug"] {
 				log.Println("labeler.go: [debug] after args: ", args)
 			}
@@ -284,21 +289,48 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				log.Printf(cmd)
 			}
 		}
-		for param := range p.params {
-			switch {
-			case strings.HasPrefix(param, "l-bp-"):
-				p.createBP()
-				break
+		combined := make(map[string]bool)
+		for key, value := range p.flags {
+			combined[key] = value
+		}
+		for key := range p.params {
+			combined[key] = true
+		}
 
-			case strings.HasPrefix(param, "l-mw-"):
-				p.createMW()
-				break
-
-			case strings.HasPrefix(param, "l-remote-"):
-				p.remoteDeployTo()
-				break
+		if p.flags["l-debug"] {
+			for key, value := range p.pluginPtrs {
+				log.Printf("labeler.go: key: %v, value: %v\n", key, value)
 			}
 		}
+
+		fnArgs := []reflect.Value{reflect.ValueOf(p), reflect.ValueOf(false)}
+
+		for key := range combined {
+			for pkey, value := range p.pluginArgs {
+				for _, vCSV := range value {
+					v := strings.Split(vCSV, ",")
+					if key == v[0] {
+						if p.pluginPtrs[pkey].IsValid() {
+							p.pluginPtrs[pkey].Call(fnArgs)
+						}
+					}
+				}
+			}
+		}
+		// 	switch {
+		// 	case strings.HasPrefix(key, "l-bp"):
+		// 		p.PluginCreateBP(false)
+		// 		break
+
+		// 	case strings.HasPrefix(key, "l-mw"):
+		// 		p.PluginCreateMW(false)
+		// 		break
+
+		// 	case strings.HasPrefix(key, "l-remote"):
+		// 		p.PluginRemoteDeployTo(false)
+		// 		break
+		// 	}
+		// }
 		if p.flags["l-debug"] {
 			for key, value := range p.resources {
 				fmt.Printf("labeler.go: [debug] resources: Key: %s, Value: %s\n", key, value)
@@ -307,6 +339,27 @@ func (p ParamsStruct) aliasRun(args []string) error {
 
 	}
 	return nil
+}
+
+func (p ParamsStruct) getPluginNamesAndArgs() {
+	t := reflect.TypeOf(p)
+	// Iterate through the methods of the struct
+	for i := 0; i < t.NumMethod(); i++ {
+		// Get the method
+		method := t.Method(i)
+		fnValue := reflect.ValueOf(method.Func.Interface())
+
+		if strings.HasPrefix(method.Name, "Plugin") {
+			// log.Println("labeler.go: method.Name:", method.Name)
+			args := []reflect.Value{reflect.ValueOf(p), reflect.ValueOf(true)}
+			result := fnValue.Call(args)
+			for _, rv := range result {
+				v := rv.Interface()
+				p.pluginArgs[method.Name] = v.([]string)
+				p.pluginPtrs[method.Name] = fnValue
+			}
+		}
+	}
 }
 
 func (p ParamsStruct) setLabelNamespace() error {

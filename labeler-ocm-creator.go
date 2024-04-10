@@ -35,7 +35,14 @@ type RawExtension struct {
 	Raw []byte `yaml:",inline"`
 }
 
-func (p ParamsStruct) createMW() {
+func (p ParamsStruct) PluginCreateMW(reflect bool) []string {
+	// function must be exportable (capitalize first letter of function name) to be discovered by labeler
+	if reflect {
+		return []string{"l-mw-name,string,name for the manifestwork object", "l-mw-create,flag,create/apply the manifestwork object"}
+	}
+	type PluginFunction struct {
+		pluginCreateMW string `triggerKey:"l-mw"`
+	}
 	n := "change-me"
 	nArg := "l-mw-name"
 	g := "work.open-cluster-management.io"
@@ -70,7 +77,7 @@ func (p ParamsStruct) createMW() {
 	yamlData, err := yaml.Marshal(manifestWork)
 	if err != nil {
 		fmt.Println("Error marshaling YAML:", err)
-		return
+		return []string{}
 	}
 
 	if p.flags["l-mw-create"] {
@@ -79,4 +86,5 @@ func (p ParamsStruct) createMW() {
 	} else {
 		fmt.Println(string(yamlData))
 	}
+	return []string{}
 }

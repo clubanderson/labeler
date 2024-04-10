@@ -5,7 +5,13 @@ import (
 	"strings"
 )
 
-func (p ParamsStruct) remoteDeployTo() {
+func (p ParamsStruct) PluginRemoteDeployTo(reflect bool) []string {
+	// function must be exportable (capitalize first letter of function name) to be discovered by labeler
+	if reflect {
+		return []string{"l-remote-contexts,string,comma-separated list of remote contexts to deploy to (usage: --l-remote-contexts=cluster1,cluster2,cluster3)"}
+	}
+	supportedArgs := []string{"l-remote-contexts"}
+	_ = supportedArgs
 	if p.params["l-remote-contexts"] != "" {
 		remoteContexts := strings.Split(p.params["l-remote-contexts"], ",")
 
@@ -75,4 +81,5 @@ func (p ParamsStruct) remoteDeployTo() {
 			log.Println("logger: deploy-to requested but flags do not include 'apply' or 'create' or 'dry-run'")
 		}
 	}
+	return []string{}
 }
