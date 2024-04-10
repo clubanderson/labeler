@@ -448,7 +448,7 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 		err := decoder.Decode(&obj)
 		if err != nil {
 			if err.Error() != "EOF" && !strings.Contains(err.Error(), "did not find expected alphabetic or numeric character") {
-				log.Printf("labeler.go: decoding error: %v\n%v\n", err, obj)
+				// log.Printf("labeler.go: decoding error: %v\n%v\n", err, obj)
 			}
 			break // Reached end of file or error
 		}
