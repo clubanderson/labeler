@@ -1,10 +1,10 @@
 # Kubernetes Labeler
-<img src="kube-labeler.jpg" alt="drawing" width="100"/> 
+<img src="media/kube-labeler.jpg" alt="drawing" width="100"/> 
 
 ## A labeler for all kubectl, kustomize, and helm resources  
 
 <!-- [![Watch the video](https://youtu.be/lHcn3W7iuqA)](https://youtu.be/lHcn3W7iuqA) -->
-<img src="demo/labeler.gif" width="800">
+<img src="media/labeler.gif" width="800">
 
 
 [Video Demo](https://youtu.be/lHcn3W7iuqA)
