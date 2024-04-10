@@ -37,8 +37,7 @@ type RawExtension struct {
 
 func (p ParamsStruct) createMW() {
 	n := "change-me"
-	nArg := "mw-name"
-	nsArg := "mw-ns"
+	nArg := "l-mw-name"
 	g := "work.open-cluster-management.io"
 	v := "v1"
 	k := "ManifestWork"
@@ -74,13 +73,9 @@ func (p ParamsStruct) createMW() {
 		return
 	}
 
-	if p.flags["debug"] {
-		log.Printf("%v parameter: %v", nsArg, p.params[nsArg])
-	}
-
-	if p.params["bp-wds"] != "" {
-		log.Printf("  🚀 Attempting to create %v object %q in WDS namespace %q", k, n, p.params[nsArg])
-		p.createObjForPlugin(gvk, yamlData, n, r)
+	if p.flags["l-mw-create"] {
+		log.Printf("  🚀 Attempting to create %v object %q in namespace %q", k, n, p.params["namespaceArg"])
+		p.createObjForPlugin(gvk, yamlData, n, r, p.params["namespaceArg"])
 	} else {
 		fmt.Println(string(yamlData))
 	}

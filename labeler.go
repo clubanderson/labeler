@@ -21,6 +21,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -37,6 +38,7 @@ type ParamsStruct struct {
 	DynamicClient *dynamic.DynamicClient
 	flags         map[string]bool
 	params        map[string]string
+	resources     map[string]string
 }
 
 type resultsStruct struct {
@@ -91,6 +93,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	args = os.Args[1:]
 	p.flags = make(map[string]bool)
 	p.params = make(map[string]string)
+	p.resources = make(map[string]string)
 
 	p.flags[args[0]] = true
 	for i, arg := range args {
@@ -152,7 +155,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	}
 
 	// Print flags and params
-	if p.flags["debug"] {
+	if p.flags["l-debug"] {
 		log.Println("labeler.go: [debug] Flags:")
 		for flag, value := range p.flags {
 			log.Printf("labeler.go: [debug] %s: %t\n", flag, value)
@@ -166,20 +169,20 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	}
 
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
-		// if kubectl - remove debug from args
+		p.params["namespaceArg"] = ""
+		if p.params["namespace"] != "" {
+			p.params["namespaceArg"] = p.params["namespace"]
+		} else if p.params["n"] != "" {
+			p.params["namespaceArg"] = p.params["n"]
+		}
+		if p.params["namespaceArg"] == "" {
+			p.params["namespaceArg"] = "default"
+		}
 
 		// remove the following args for both helm and kubectl because they do not recognize them
 		for i := 0; i < len(args); i++ {
 			// log.Printf("args: %v", args[i])
-			if strings.HasPrefix(args[i], "--bp-") {
-				args = append(args[:i], args[i+1:]...)
-				i--
-			}
-			if strings.HasPrefix(args[i], "--mw-") {
-				args = append(args[:i], args[i+1:]...)
-				i--
-			}
-			if strings.HasPrefix(args[i], "--remote-") {
+			if strings.HasPrefix(args[i], "--l-") {
 				args = append(args[:i], args[i+1:]...)
 				i--
 			}
@@ -197,22 +200,16 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				i--
 			}
 		}
-		if p.flags["debug"] {
+		if p.flags["l-debug"] {
 			log.Println("labeler.go: [debug] before args: ", args)
 		}
 		// Run the command with the parsed flags
-		if args[0] == "k" || args[0] == "kubectl" {
-			for i := 0; i < len(args); i++ {
-				// log.Printf("args: %v", args[i])
 
-				// remove these args specifically for kubectl because it does not recognize them
-				if strings.HasPrefix(args[i], "--debug") {
-					p.flags[args[i]] = true
-					args = append(args[:i], args[i+1:]...)
-					i--
-				}
-			}
-			if p.flags["debug"] {
+		if args[0] == "k" || args[0] == "kubectl" {
+			// for i := 0; i < len(args); i++ {
+			// 	log.Printf("args: %v", args[i])
+			// }
+			if p.flags["l-debug"] {
 				log.Println("labeler.go: [debug] after args: ", args)
 			}
 
@@ -234,20 +231,6 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			lines := strings.Split(output, "\n")
 			p.setLabelKubectl(lines)
 
-			namespace := ""
-			if p.params["namespace"] != "" {
-				namespace = p.params["namespace"]
-			} else if p.params["n"] != "" {
-				namespace = p.params["n"]
-			}
-			if namespace != "" && namespace != "default" {
-				err = p.setLabelNamespace()
-				if err != nil {
-					log.Println("labeler.go: error (set label namespace):", err)
-					return err
-				}
-			}
-
 		} else if args[0] == "helm" {
 			// run the original helm command without the extra labeler flags
 			output, err := p.runCmd("helm", args[1:])
@@ -262,13 +245,13 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			originalCommand := strings.Join(args, " ")
 			p.originalCmd = originalCommand
 
-			if p.flags["debug"] {
+			if p.flags["l-debug"] {
 				log.Printf("labeler.go: [debug] original command: %v\n", originalCommand)
 			}
 			modifiedCommand := strings.Replace(originalCommand, " install ", " template ", 1)
 			modifiedCommand = strings.Replace(modifiedCommand, " upgrade ", " template ", 1)
 			modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
-			if p.flags["debug"] {
+			if p.flags["l-debug"] {
 				log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommandComponents)
 			}
 
@@ -285,20 +268,14 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				log.Println("labeler.go: error (to traverseInput):", err)
 				return err
 			}
-			namespace := ""
-			if p.params["namespace"] != "" {
-				namespace = p.params["namespace"]
-			} else if p.params["n"] != "" {
-				namespace = p.params["n"]
-			}
-			if namespace != "" && namespace != "default" {
-				err = p.setLabelNamespace()
-				if err != nil {
-					log.Println("labeler.go: Error (set label namespace):", err)
-					return err
-				}
-			}
 
+		}
+		if p.params["namespaceArg"] != "" && p.params["namespaceArg"] != "default" {
+			err := p.setLabelNamespace()
+			if err != nil {
+				log.Println("labeler.go: error (set label namespace):", err)
+				return err
+			}
 		}
 
 		if len(runResults.didNotLabel) > 0 {
@@ -307,17 +284,25 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				log.Printf(cmd)
 			}
 		}
-		if p.flags["bp-create"] {
-			log.Println()
-			p.createBP()
+		for param := range p.params {
+			switch {
+			case strings.HasPrefix(param, "l-bp-"):
+				p.createBP()
+				break
+
+			case strings.HasPrefix(param, "l-mw-"):
+				p.createMW()
+				break
+
+			case strings.HasPrefix(param, "l-remote-"):
+				p.remoteDeployTo()
+				break
+			}
 		}
-		if p.flags["mw-create"] {
-			log.Println()
-			p.createMW()
-		}
-		if p.params["remote-contexts"] != "" {
-			log.Println()
-			p.remoteDeployTo()
+		if p.flags["l-debug"] {
+			for key, value := range p.resources {
+				fmt.Printf("labeler.go: [debug] resources: Key: %s, Value: %s\n", key, value)
+			}
 		}
 
 	}
@@ -365,6 +350,8 @@ func (p ParamsStruct) setLabelNamespace() error {
 	} else {
 		log.Printf("  🏷️ labeled object %v/%v/%v %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, namespace, p.params["labelKey"], p.params["labelVal"])
 	}
+	p.resources[gvr.Group+"/"+gvr.Version+"/"+gvr.Resource+"/"+namespace+"/"] = "apiVersion"
+
 	return nil
 }
 
@@ -429,15 +416,15 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 
 		gvr, err := p.getGVRFromGVK(mapper, gvk)
 		if err != nil {
-			if p.flags["debug"] {
+			if p.flags["l-debug"] {
 				log.Printf("labeler.go: error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
 			}
 		}
 
 		err = p.setLabel(runtimeObj.GetNamespace(), runtimeObj.GetName(), gvr)
 		if err != nil {
-			// 	objName := strings.ReplaceAll(runtimeObj.GetName(), "release-name-", starHelmChartReleaseName+"-")
-			// 	p.setLabel(namespace, objName, gvr)
+			// objName := strings.ReplaceAll(runtimeObj.GetName(), "release-name-", starHelmChartReleaseName+"-")
+			// p.setLabel(runtimeObj.GetNamespace(), objName, gvr)
 		}
 
 	}
@@ -445,6 +432,7 @@ func (p ParamsStruct) traverseInputAndLabel(r io.Reader, w io.Writer) error {
 }
 
 func (p ParamsStruct) setLabelKubectl(input []string) {
+	mapper, _ := p.createCachedDiscoveryClient(*p.RestConfig)
 	allLines := strings.Join(input, "\n")
 
 	re := regexp.MustCompile(`([a-zA-Z0-9.-]+\/[a-zA-Z0-9.-]+) ([a-zA-Z0-9.-]+)`)
@@ -456,13 +444,14 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 	} else if p.params["n"] != "" {
 		namespace = p.params["n"]
 	}
-
 	if namespace == "" {
 		namespace = "default" // this needs to be the value given to kubectl - if empty, then it is default
 	}
 
 	if flags.label == "" && p.params["labelKey"] == "" {
-		log.Println("labeler.go: no label provided")
+		if p.flags["l-debug"] {
+			log.Println("labeler.go: no label provided")
+		}
 		return
 	}
 	if flags.label != "" {
@@ -470,7 +459,9 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 	}
 
 	if len(matches) == 0 {
-		log.Println("labeler.go: no resources found to label")
+		if p.flags["l-debug"] {
+			log.Println("labeler.go: no resources found to label")
+		}
 		return
 	}
 
@@ -478,16 +469,20 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 	for _, match := range matches {
 		var labelCmd []string
 		// log.Printf("labeler.go: match: %v\n", match)
-		// the first match group contains the group version kind and object name
-		groupVersionKindObjectName := match[1]
+		// the first match group contains the group kind and object name
+		groupKindObjectName := match[1]
 		// split the string to get group version kind and object name
-		parts := strings.Split(groupVersionKindObjectName, "/")
+		parts := strings.Split(groupKindObjectName, "/")
 		gvkParts := strings.Split(parts[0], ".")
-		kind := gvkParts[0]
-		// group := gvkParts[1:]
+		k := gvkParts[0]
+		g := ""
+		v := ""
+		if len(gvkParts) >= 1 {
+			g = strings.Join(gvkParts[1:], ".")
+		}
 		objectName := parts[1]
-		// log.Printf("labeler.go: group: %s, kind: %s, ObjectName: %s", group, kind, objectName)
-		labelCmd = []string{"-n", namespace, "label", kind + "/" + objectName, p.params["labelKey"] + "=" + p.params["labelVal"]}
+		// log.Printf("labeler.go: g: %s, k: %s, ObjectName: %s", g, k, objectName)
+		labelCmd = []string{"-n", namespace, "label", k + "/" + objectName, p.params["labelKey"] + "=" + p.params["labelVal"]}
 		if flags.context != "" {
 			labelCmd = append(labelCmd, "--context="+flags.context)
 			// labelCmd = []string{"--context=" + flags.context, "-n", namespace, "label", kind + "/" + objectName, p.params["labelKey"] + "=" + p.params["labelVal"], "--overwrite"}
@@ -505,7 +500,36 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 			labelCmd = append(labelCmd, "--kubeconfig="+p.params["kubeconfig"])
 		}
 
+		client, _ := kubernetes.NewForConfig(p.RestConfig)
+		res, _ := discovery.ServerPreferredResources(client.Discovery())
+		for _, resList := range res {
+			for _, r := range resList.APIResources {
+				// fmt.Printf("%q %q %q\n", r.Group, r.Version, r.Kind)
+				if strings.ToLower(r.Group) == strings.ToLower(g) && strings.ToLower(r.Kind) == strings.ToLower(k) {
+					if r.Version == "" {
+						v = "v1"
+					} else {
+						v = r.Version
+					}
+					break
+				}
+			}
+		}
 		// log.Printf("labeler.go: labelCmd: %v\n", labelCmd)
+		gvk := schema.GroupVersionKind{
+			Group:   g,
+			Version: v,
+			Kind:    k,
+		}
+		gvr, err := p.getGVRFromGVK(mapper, gvk)
+		if err != nil {
+			if p.flags["l-debug"] {
+				log.Printf("labeler.go: error getting gvr from gvk for %v/%v/%v: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
+			}
+		}
+
+		p.resources[gvr.Group+"/"+gvr.Version+"/"+gvr.Resource+"/"+objectName+"/"+namespace] = "apiVersion"
+
 		output, err := p.runCmd("kubectl", labelCmd)
 		if err != nil {
 			// log.Printf("labeler.go: label did not apply due to error: %v", err)
@@ -521,7 +545,9 @@ func (p ParamsStruct) setLabelKubectl(input []string) {
 
 func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVersionResource) error {
 	if flags.label == "" && p.params["labelKey"] == "" {
-		log.Println("labeler.go: no label provided")
+		if p.flags["l-debug"] {
+			log.Println("labeler.go: no label provided")
+		}
 		return nil
 	}
 	if flags.label != "" {
@@ -542,17 +568,26 @@ func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVer
 		return err
 	}
 
+	if p.flags["l-debug"] {
+		log.Printf("labeler.go: patching object %v/%v/%v %q in namespace %q with %v=%v %q %q %q %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.params["labelKey"], p.params["labelVal"], gvr.Resource, gvr.Version, gvr.Group, string(patch))
+	}
 	if namespace == "" {
 		_, err = p.DynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
-		// if err != nil {
-		// 	log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
-		// }
+		if err != nil {
+			if p.flags["l-debug"] {
+				log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
+			}
+		}
 	} else {
 		_, err = p.DynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
-		// if err != nil {
-		// 	log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
-		// }
+		if err != nil {
+			if p.flags["l-debug"] {
+				log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
+			}
+		}
 	}
+
+	p.resources[gvr.Group+"/"+gvr.Version+"/"+gvr.Resource+"/"+objectName+"/"+namespace] = "apiVersion"
 
 	if err != nil {
 		if namespace != "" {

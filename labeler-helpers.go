@@ -139,22 +139,6 @@ func DecodeYAML(yamlBytes []byte) (*unstructured.Unstructured, error) {
 	return obj, nil
 }
 
-func getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapping: %v", err)
-	}
-
-	gvr := mapping.Resource
-
-	// Check if the resource is found
-	if gvr.Resource == "" {
-		return schema.GroupVersionResource{}, fmt.Errorf("resource name not found for kind %s/%s %s", gvk.Group, gvk.Version, gvk.Kind)
-	}
-
-	return gvr, nil
-}
-
 func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) {
 	cmd := exec.Command(cmdToRun, cmdArgs...)
 	cmd.Env = append(cmd.Env, "PATH="+p.path)

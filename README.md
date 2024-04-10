@@ -47,27 +47,27 @@ After hacking at this for some time, I decided to come up with 2 approaches to r
 ```
     git clone https://github.com/clubanderson/labeler
     cd labeler
-    go build labeler.go labeler-helpers.go labeler-bp-creator.go labeler-piped.go labeler-kube-helpers.go labeler-remote-deploy.go
+    go build labeler.go labeler-helpers.go labeler-bp-creator.go labeler-piped.go labeler-kube-helpers.go labeler-remote-deploy.go labeler-ocm-creator.go
     sudo cp labeler /usr/local/bin # if you want to use labeler from your path
 ```
   - then -
 ```
-    alias kl="labeler kubectl"
-    alias hl="labeler helm"
+    alias k="labeler kubectl"
+    alias h="labeler helm"
 ```
   - optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
 ```
-    alias kl='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
-    alias hl='labeler helm'     # you could also replace 'helm' (looking into this)
+    alias k='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
+    alias h='labeler helm'     # you could also replace 'helm' (looking into this)
 ```
 
 # 1 - Labeler as an alias to kubectl and helm
 
-run kl as you would an kubectl command with arguments, and labeler will label all applied/created resources, or give output on how to do so:
+run k as you would an kubectl command with arguments, and labeler will label all applied/created resources, or give output on how to do so:
 
   kubectl
 
-    kl apply -f examples/kubectl/pass -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite
+    k apply -f examples/kubectl/pass -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite
     
     deployment.apps/my-app-deployment2 unchanged
     service/my-app-service2 unchanged
@@ -76,35 +76,35 @@ run kl as you would an kubectl command with arguments, and labeler will label al
 
   kustomize with "" or "default" namespace (object were previously created and labeled)
 
-    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample-app --context=kind-kind --namespace=default --overwrite
+    k apply -k examples/kustomize -l app.kubernetes.io/part-of=sample-app --context=kind-kind --namespace=default --overwrite
       service/my-app-service already has label app.kubernetes.io/part-of=sample-app
       deployment.apps/my-app-deployment already has label app.kubernetes.io/part-of=sample-app
 
   kustomize with "" or "default" namespace (object were previously created and but new label value provided)
 
-    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite 
+    k apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite 
       🏷️ created and labeled object "my-app-service" in namespace "default" with app.kubernetes.io/part-of=sample
       🏷️ created and labeled object "my-app-deployment" in namespace "default" with app.kubernetes.io/part-of=sample
 
   kustomize with a namespace other than "" or "default" (objects were previously created and labeled)
 
-    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample-app --context=kind-kind --namespace=temp --overwrite
+    k apply -k examples/kustomize -l app.kubernetes.io/part-of=sample-app --context=kind-kind --namespace=temp --overwrite
       service/my-app-service already has label app.kubernetes.io/part-of=sample-app
       deployment.apps/my-app-deployment already has label app.kubernetes.io/part-of=sample-app
       🏷️ labeled object /v1/namespaces "temp" with app.kubernetes.io/part-of=sample-app
 
   kustomize with a namespace other than "" or "default" (objects were previously created but new label value provided)
 
-    kl apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite
+    k apply -k examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite
       🏷️ created and labeled object "my-app-service" in namespace "temp" with app.kubernetes.io/part-of=sample
       🏷️ created and labeled object "my-app-deployment" in namespace "temp" with app.kubernetes.io/part-of=sample
       🏷️ labeled object /v1/namespaces "temp" with app.kubernetes.io/part-of=sample
 
-  run hl with any helm command line arguments, and labeler will label all installed resources, or give output on how to do so
+  run h with any helm command line arguments, and labeler will label all installed resources, or give output on how to do so
 
   helm (template)
 
-    hl --kube-context=kind-kind template sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --dry-run; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+    h --kube-context=kind-kind template sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --dry-run; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
 
       🏷️ labeled object /v1/namespaces "sealed-secrets" with app.kubernetes.io/part-of=sample-app
 
@@ -123,7 +123,7 @@ run kl as you would an kubectl command with arguments, and labeler will label al
 
   helm (install with dry-run)
 
-    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --dry-run; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+    h --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --dry-run; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
 
     The following resources do not exist and can be labeled at a later time:
 
@@ -140,7 +140,7 @@ run kl as you would an kubectl command with arguments, and labeler will label al
 
   helm (install)
 
-    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+    h --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
 
       🏷️ labeled object /v1/serviceaccounts "sealed-secrets" in namespace "sealed-secrets" with app.kubernetes.io/part-of=sample-app
       🏷️ labeled object rbac.authorization.k8s.io/v1/clusterroles "secrets-unsealer" in namespace "" with app.kubernetes.io/part-of=sample-app
@@ -158,8 +158,8 @@ run kl as you would an kubectl command with arguments, and labeler will label al
 Not entirely working, but a sample manifestwork is output (TODO: output only right now)
 
   with kubectl and kustomize:
-  
-    kl apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite --mw-create                    kind-kind/default ⎈ 
+
+    k apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite --l-mw-create
 
     deployment.apps/my-app-deployment2 unchanged
     service/my-app-service2 unchanged
@@ -178,16 +178,16 @@ Not entirely working, but a sample manifestwork is output (TODO: output only rig
 # Labeler with a KubeStellar BindingPolicy as output
 You can give command line arguments to trigger the output (and creation) of a bindingpolicy for use with KubeStellar
 
-    --bp-create 
-    --bp-clusterselector=location-group=edge 
-    --bp-wantsingletonreportedstate 
-    --bp-name=my-test
-    --bp-wds=wds1 (this triggers an attempt to create the bindingpolicy object)
+    --l-bp-create 
+    --l-bp-clusterselector=location-group=edge 
+    --l-bp-wantsingletonreportedstate 
+    --l-bp-name=my-test
+    --l-bp-wds=wds1 (this triggers an attempt to create the bindingpolicy object)
 
 
   with kubectl and kustomize:
 
-    kl --context=kind-kind apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample2 -n temp --overwrite --bp-create --bp-clusterselector=location-group=edge --bp-wantsingletonreportedstate --bp-name=my-test --bp-wds=wds1
+    k --context=kind-kind apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample2 -n temp --overwrite --l-bp-create --l-bp-clusterselector=location-group=edge --l-bp-wantsingletonreportedstate --l-bp-name=my-test --l-bp-wds=wds1
 
     deployment.apps/my-app-deployment2 unchanged
     service/my-app-service2 unchanged
@@ -200,7 +200,7 @@ You can give command line arguments to trigger the output (and creation) of a bi
 
   with helm:
 
-    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --bp-create --bp-clusterselector=location-group=edge --bp-wantsingletonreportedstate --bp-name=my-test; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
+    h --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --l-bp-create --l-bp-clusterselector=location-group=edge --l-bp-wantsingletonreportedstate --l-bp-name=my-test; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets
 
     NAME: sealed-secrets
     LAST DEPLOYED: Tue Apr  9 12:01:43 2024
@@ -275,11 +275,11 @@ You can give command line arguments to trigger the output (and creation) of a bi
                 app.kubernetes.io/part-of: sample-app
 
 # Labeler with deployment to multiple contexts
-If your in a jam and need kubectl or helm to deploy to multiple context, just add "--remote-contexts=wds1,wds2" to quickly deploy packages to multiple remote contexts. Assumes all contexts are in the original kubeconfig. (TODO - add params list of --kubeconfig in --remote-kubeconfigs and iterate to find the right one, then break)
+If your in a jam and need kubectl or helm to deploy to multiple context, just add "--l-remote-contexts=wds1,wds2" to quickly deploy packages to multiple remote contexts. Assumes all contexts are in the original kubeconfig. (TODO - add params list of --kubeconfig in --l-remote-kubeconfigs and iterate to find the right one, then break)
 
   with kubectl:
 
-    kl apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite --remote-contexts=wds1,wds2  kind-kind/default ⎈ 
+    k apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite --l-remote-contexts=wds1,wds2  kind-kind/default ⎈ 
 
     deployment.apps/my-app-deployment2 unchanged
     service/my-app-service2 unchanged
@@ -295,7 +295,7 @@ If your in a jam and need kubectl or helm to deploy to multiple context, just ad
 
   with helm:
 
-    hl --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --remote-contexts=wds1,wds2; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets 
+    h --kube-context=kind-kind install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --label=app.kubernetes.io/part-of=sample-app --l-remote-contexts=wds1,wds2; helm --kube-context=kind-kind uninstall sealed-secrets -n sealed-secrets 
     NAME: sealed-secrets
     LAST DEPLOYED: Tue Apr  9 13:29:24 2024
     NAMESPACE: sealed-secrets
@@ -414,18 +414,18 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
 ```
     git clone https://github.com/clubanderson/labeler
     cd labeler
-    go build labeler.go labeler-helpers.go labeler-bp-creator.go labeler-piped.go labelers-kube-helpers.go labeler-remote-deploy.go
+    go build labeler.go labeler-helpers.go labeler-bp-creator.go labeler-piped.go labelers-kube-helpers.go labeler-remote-deploy.go labeler-ocm-creator.go
     sudo cp labeler /usr/local/bin # if you want to use labeler from your path
 ```
   then -
 ```
-    alias kl="labeler kubectl"
-    alias hl="labeler helm"
+    alias k="labeler kubectl"
+    alias h="labeler helm"
 ```
   optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
 ```
-    alias kl='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
-    alias hl='labeler helm'     # you could also replace 'helm' (looking into this)
+    alias k='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
+    alias h='labeler helm'     # you could also replace 'helm' (looking into this)
 ```
   
 ### to test:

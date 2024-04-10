@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-func (p ParamsStruct) createObjForPlugin(gvk schema.GroupVersionKind, yamlData []byte, objName, objResource string) {
+func (p ParamsStruct) createObjForPlugin(gvk schema.GroupVersionKind, yamlData []byte, objName, objResource, namespace string) {
 	// Unmarshal YAML data into a map
 	var objMap map[string]interface{}
 	err := yaml.Unmarshal([]byte(yamlData), &objMap)
@@ -37,8 +37,6 @@ func (p ParamsStruct) createObjForPlugin(gvk schema.GroupVersionKind, yamlData [
 		Resource: objResource,
 	}
 
-	wdsNS := p.params["mw-ns"]
-
 	nsgvr := schema.GroupVersionResource{
 		Group:    "",
 		Version:  "v1",
@@ -46,15 +44,15 @@ func (p ParamsStruct) createObjForPlugin(gvk schema.GroupVersionKind, yamlData [
 	}
 
 	if p.flags["debug"] {
-		log.Printf("  ℹ️  object info %v/%v/%v %v\n", nsgvr.Group, nsgvr.Version, nsgvr.Resource, wdsNS)
+		log.Printf("  ℹ️  object info %v/%v/%v %v\n", nsgvr.Group, nsgvr.Version, nsgvr.Resource, namespace)
 	}
-	_, err = p.getObject(p.DynamicClient, "", nsgvr, wdsNS)
+	_, err = p.getObject(p.DynamicClient, "", nsgvr, namespace)
 	if err != nil {
-		log.Printf("  🔴 failed to create %v %q, namespace %q does not exist. Is KubeStellar installed?\n", objResource, objName, wdsNS)
+		log.Printf("  🔴 failed to create %v %q, namespace %q does not exist. Is KubeStellar installed?\n", objResource, objName, namespace)
 	} else {
-		_, err = p.createObject(p.DynamicClient, wdsNS, gvr, objectJSON)
+		_, err = p.createObject(p.DynamicClient, namespace, gvr, objectJSON)
 		if err != nil {
-			log.Printf("  🔴 failed to create %v object %q in namespace %v. Is KubeStellar installed?\n", objResource, objName, wdsNS)
+			log.Printf("  🔴 failed to create %v object %q in namespace %v. Is KubeStellar installed?\n", objResource, objName, namespace)
 		}
 	}
 }

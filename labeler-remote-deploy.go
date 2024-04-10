@@ -6,12 +6,12 @@ import (
 )
 
 func (p ParamsStruct) remoteDeployTo() {
-	if p.params["remote-contexts"] != "" {
-		remoteContexts := strings.Split(p.params["remote-contexts"], ",")
+	if p.params["l-remote-contexts"] != "" {
+		remoteContexts := strings.Split(p.params["l-remote-contexts"], ",")
 
 		if (p.flags["kubectl"] || p.flags["k"]) && (p.flags["apply"] || p.flags["create"]) && (p.params["dry-run"] == "") {
 			log.Printf(" attempting deployment to contexts: %v\n", remoteContexts)
-			if p.flags["debug"] {
+			if p.flags["l-debug"] {
 				log.Printf("labeler.go: [debug] remoteDeployTo: original command: %q\n", p.originalCmd)
 			}
 			for _, context := range remoteContexts {
@@ -29,7 +29,7 @@ func (p ParamsStruct) remoteDeployTo() {
 				if isThereContext == false {
 					modifiedCommand = append(modifiedCommand, "--context="+context)
 				}
-				if p.flags["debug"] {
+				if p.flags["l-debug"] {
 					log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommand)
 				}
 
@@ -42,7 +42,7 @@ func (p ParamsStruct) remoteDeployTo() {
 			}
 		} else if (p.flags["helm"]) && (p.flags["upgrade"] || p.flags["install"]) && (!p.flags["dry-run"]) {
 			log.Printf(" attempting deployment to contexts: %v\n", remoteContexts)
-			if p.flags["debug"] {
+			if p.flags["l-debug"] {
 				log.Printf("labeler.go: [debug] remoteDeployTo: original command: %q\n", p.originalCmd)
 			}
 			for _, context := range remoteContexts {
@@ -60,7 +60,7 @@ func (p ParamsStruct) remoteDeployTo() {
 				if isThereContext == false {
 					modifiedCommand = append(modifiedCommand, "--kube-context="+context)
 				}
-				if p.flags["debug"] {
+				if p.flags["l-debug"] {
 					log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommand)
 				}
 

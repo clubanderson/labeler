@@ -40,8 +40,8 @@ type ObjectSelector struct {
 
 func (p ParamsStruct) createBP() {
 	n := "change-me"
-	nArg := "bp-name"
-	nsArg := "bp-ns"
+	nArg := "l-bp-name"
+	nsArg := "l-bp-ns"
 	clusterSelectorLabelKey := "location-group"
 	clusterSelectorLabelVal := "edge"
 	wantSingletonReportedState := false
@@ -59,11 +59,11 @@ func (p ParamsStruct) createBP() {
 	if p.params[nArg] != "" {
 		n = p.params[nArg]
 	}
-	if p.params["bp-clusterselector"] != "" {
-		clusterSelectorLabelKey = strings.Split(p.params["bp-clusterselector"], "=")[0]
-		clusterSelectorLabelVal = strings.Split(p.params["bp-clusterselector"], "=")[1]
+	if p.params["l-bp-clusterselector"] != "" {
+		clusterSelectorLabelKey = strings.Split(p.params["l-bp-clusterselector"], "=")[0]
+		clusterSelectorLabelVal = strings.Split(p.params["l-bp-clusterselector"], "=")[1]
 	}
-	if p.flags["bp-wantsingletonreportedstate"] {
+	if p.flags["l-bp-wantsingletonreportedstate"] {
 		wantSingletonReportedState = true
 	}
 
@@ -102,13 +102,13 @@ func (p ParamsStruct) createBP() {
 		return
 	}
 
-	if p.flags["debug"] {
+	if p.flags["l-debug"] {
 		log.Printf("%v parameter: %v", nsArg, p.params[nsArg])
 	}
 
-	if p.params["bp-wds"] != "" {
+	if p.params["l-bp-wds"] != "" {
 		log.Printf("  🚀 Attempting to create %v object %q in WDS namespace %q", k, n, p.params[nsArg])
-		p.createObjForPlugin(gvk, yamlData, n, r)
+		p.createObjForPlugin(gvk, yamlData, n, r, p.params["namespaceArg"])
 	} else {
 		fmt.Println(string(yamlData))
 	}
