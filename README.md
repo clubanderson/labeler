@@ -47,8 +47,8 @@ After hacking at this for some time, I decided to come up with 2 approaches to r
 ```
     git clone https://github.com/clubanderson/labeler
     cd labeler
-    go build labeler.go labeler-helpers.go labeler-bp-creator.go labeler-piped.go labeler-kube-helpers.go labeler-remote-deploy.go labeler-ocm-creator.go
-    sudo cp labeler /usr/local/bin # if you want to use labeler from your path
+    make build
+    make deploy
 ```
   - then -
 ```
@@ -414,8 +414,8 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
 ```
     git clone https://github.com/clubanderson/labeler
     cd labeler
-    go build labeler.go labeler-helpers.go labeler-bp-creator.go labeler-piped.go labelers-kube-helpers.go labeler-remote-deploy.go labeler-ocm-creator.go
-    sudo cp labeler /usr/local/bin # if you want to use labeler from your path
+    make build
+    make deploy
 ```
   then -
 ```

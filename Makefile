@@ -2,6 +2,8 @@ SOURCES := $(shell find pkg -name '*.go')
 
 build:
 	go build -o labeler $(SOURCES)
+
+deploy:
 	sudo cp labeler /usr/local/bin
 
 run:
