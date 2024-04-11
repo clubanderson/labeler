@@ -1,10 +1,10 @@
 SOURCES := $(shell find pkg -name '*.go')
 
 build:
-	go build -o labeler $(SOURCES)
+	go build -o bin/labeler $(SOURCES)
 
 install:
-	sudo cp labeler /usr/local/bin
+	sudo cp bin/labeler /usr/local/bin
 
 run:
 	go run labeler.go
