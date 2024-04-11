@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -9,12 +10,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/disk"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -22,6 +26,174 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+func (p ParamsStruct) traverseKubectlOutput(input []string) {
+	mapper, _ := p.createCachedDiscoveryClient(*p.RestConfig)
+	allLines := strings.Join(input, "\n")
+
+	re := regexp.MustCompile(`([a-zA-Z0-9.-]+\/[a-zA-Z0-9.-]+) ([a-zA-Z0-9.-]+)`)
+	matches := re.FindAllStringSubmatch(allLines, -1)
+
+	namespace := p.params["namespaceArg"]
+
+	if flags.label == "" && p.params["labelKey"] == "" {
+		if p.flags["l-debug"] {
+			log.Println("labeler.go: no label provided")
+		}
+		return
+	}
+	if flags.label != "" {
+		p.params["labelKey"], p.params["labelVal"] = strings.Split(flags.label, "=")[0], strings.Split(flags.label, "=")[1]
+	}
+
+	if len(matches) == 0 {
+		if p.flags["l-debug"] {
+			log.Println("labeler.go: no resources found to label")
+		}
+		return
+	}
+
+	// iterate over matches and extract group version kind and object name
+	for _, match := range matches {
+		var labelCmd []string
+		// log.Printf("labeler.go: match: %v\n", match)
+		// the first match group contains the group kind and object name
+		groupKindObjectName := match[1]
+		// split the string to get group version kind and object name
+		parts := strings.Split(groupKindObjectName, "/")
+		gvkParts := strings.Split(parts[0], ".")
+		k := gvkParts[0]
+		g := ""
+		v := ""
+		if len(gvkParts) >= 1 {
+			g = strings.Join(gvkParts[1:], ".")
+		}
+		objectName := parts[1]
+		// log.Printf("labeler.go: g: %s, k: %s, ObjectName: %s", g, k, objectName)
+		labelCmd = []string{"-n", namespace, "label", k + "/" + objectName, p.params["labelKey"] + "=" + p.params["labelVal"]}
+		if flags.context != "" {
+			labelCmd = append(labelCmd, "--context="+flags.context)
+		}
+		if p.flags["overwrite"] || flags.overwrite {
+			labelCmd = append(labelCmd, "--overwrite")
+		}
+		if p.params["context"] != "" {
+			labelCmd = append(labelCmd, "--context="+p.params["context"])
+		}
+		if p.params["kube-context"] != "" {
+			labelCmd = append(labelCmd, "--context="+p.params["kube-context"])
+		}
+		if p.params["kubeconfig"] != "" {
+			labelCmd = append(labelCmd, "--kubeconfig="+p.params["kubeconfig"])
+		}
+
+		client, _ := kubernetes.NewForConfig(p.RestConfig)
+		res, _ := discovery.ServerPreferredResources(client.Discovery())
+		for _, resList := range res {
+			for _, r := range resList.APIResources {
+				// fmt.Printf("%q %q %q\n", r.Group, r.Version, r.Kind)
+				if strings.ToLower(r.Group) == strings.ToLower(g) && strings.ToLower(r.Kind) == strings.ToLower(k) {
+					if r.Version == "" {
+						v = "v1"
+					} else {
+						v = r.Version
+					}
+					break
+				}
+			}
+		}
+		// log.Printf("labeler.go: labelCmd: %v\n", labelCmd)
+		gvk := schema.GroupVersionKind{
+			Group:   g,
+			Version: v,
+			Kind:    k,
+		}
+		gvr, err := p.getGVRFromGVK(mapper, gvk)
+		if err != nil {
+			if p.flags["l-debug"] {
+				log.Printf("labeler.go: error getting gvr from gvk for %v/%v/%v: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
+			}
+		}
+
+		resource := ResourceStruct{
+			Group:      gvr.Group,
+			Version:    gvr.Version,
+			Resource:   gvr.Resource,
+			Namespace:  namespace,
+			ObjectName: objectName,
+		}
+		p.resources[resource] = "apiVersion"
+	}
+}
+
+func (p ParamsStruct) traverseHelmOutput(r io.Reader, w io.Writer) error {
+	mapper, _ := p.createCachedDiscoveryClient(*p.RestConfig)
+
+	var linesOfOutput []string
+
+	scanner := bufio.NewScanner(bufio.NewReader(r))
+	for scanner.Scan() {
+		linesOfOutput = append(linesOfOutput, scanner.Text())
+	}
+	allLines := strings.Join(linesOfOutput, "\n")
+
+	if i := strings.Index(allLines, "---\n"); i != -1 {
+		// slice the concatenated string from the index of "---\n"
+		allLines = allLines[i:]
+	}
+
+	// Convert the sliced string back to a string slice
+	linesOfOutput = strings.Split(allLines, "\n")
+
+	decoder := yaml.NewDecoder(strings.NewReader(allLines))
+	for {
+		var obj map[string]interface{}
+		err := decoder.Decode(&obj)
+		if err != nil {
+			if err.Error() != "EOF" && !strings.Contains(err.Error(), "did not find expected alphabetic or numeric character") {
+				// log.Printf("labeler.go: decoding error: %v\n%v\n", err, obj)
+			}
+			break // reached end of file or error
+		}
+
+		// convert map to YAML byte representation
+		yamlBytes, err := yaml.Marshal(obj)
+		if err != nil {
+			log.Printf("labeler.go: error marshaling YAML: %v\n", err)
+			continue
+		}
+		runtimeObj, err := DecodeYAML(yamlBytes)
+		if err != nil {
+			// log.Printf("labeler.go: error decoding yaml: %v\n", err)
+			continue
+		}
+		gvk := runtimeObj.GroupVersionKind()
+		// log.Printf("labeler.go: G: %v, V: %v, K: %v, Name: %v", gvk.Group, gvk.Version, gvk.Kind, runtimeObj.GetName())
+
+		gvr, err := p.getGVRFromGVK(mapper, gvk)
+		if err != nil {
+			if p.flags["l-debug"] {
+				log.Printf("labeler.go: error getting gvr from gvk for %v/%v/%v. Retrying in 5 seconds: %v\n", gvk.Group, gvk.Version, gvk.Kind, err)
+			}
+		}
+
+		resource := ResourceStruct{
+			Group:      gvr.Group,
+			Version:    gvr.Version,
+			Resource:   gvr.Resource,
+			Namespace:  runtimeObj.GetNamespace(),
+			ObjectName: runtimeObj.GetName(),
+		}
+		p.resources[resource] = "apiVersion"
+
+		// if err != nil {
+		// 	// objName := strings.ReplaceAll(runtimeObj.GetName(), "release-name-", starHelmChartReleaseName+"-")
+		// 	// p.setLabel(runtimeObj.GetNamespace(), objName, gvr)
+		// }
+
+	}
+	return nil
+}
 
 func (p ParamsStruct) getPluginNamesAndArgs() {
 	t := reflect.TypeOf(p)

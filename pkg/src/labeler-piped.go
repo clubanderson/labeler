@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func (p ParamsStruct) detectInput() error {
@@ -53,10 +54,22 @@ func (p ParamsStruct) detectInput() error {
 		if yamlData != nil {
 			// log.Println("labeler.go: YAML data detected in stdin")
 			// Do something with the YAML data received - don't need to use history hack in this case - we got valid YAML input from template, --dry-run, or --debug
-			err := p.traverseInputAndLabel(strings.NewReader(string(input)), os.Stdout)
+			err := p.traverseHelmOutput(strings.NewReader(string(input)), os.Stdout)
 			if err != nil {
 				log.Println("labeler.go: error (traverseinput):", err)
 				return err
+			}
+			for resource, _ := range p.resources {
+				gvr := schema.GroupVersionResource{
+					Group:    resource.Group,
+					Version:  resource.Version,
+					Resource: resource.Resource,
+				}
+				err = p.setLabel(resource.Namespace, resource.ObjectName, gvr)
+				if err != nil {
+					log.Println("labeler.go: error (setLabel):", err)
+					return err
+				}
 			}
 		} else {
 			// log.Println("labeler.go: no YAML data detected in stdin, will try to run again with YAML output")
@@ -103,13 +116,37 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 			os.Exit(1)
 		}
 
-		err = p.traverseInputAndLabel(strings.NewReader(string(output)), os.Stdout)
+		err = p.traverseHelmOutput(strings.NewReader(string(output)), os.Stdout)
 		if err != nil {
 			log.Println("labeler.go: error (to traverseInput):", err)
 			return err
 		}
+		for resource, _ := range p.resources {
+			gvr := schema.GroupVersionResource{
+				Group:    resource.Group,
+				Version:  resource.Version,
+				Resource: resource.Resource,
+			}
+			err = p.setLabel(resource.Namespace, resource.ObjectName, gvr)
+			if err != nil {
+				log.Println("labeler.go: error (setLabel):", err)
+				return err
+			}
+		}
 	} else if cmdFound == "kubectl" || cmdFound == "kustomize" {
-		p.setLabelKubectl(input)
+		p.traverseKubectlOutput(input)
+		for resource, _ := range p.resources {
+			gvr := schema.GroupVersionResource{
+				Group:    resource.Group,
+				Version:  resource.Version,
+				Resource: resource.Resource,
+			}
+			err = p.setLabel(resource.Namespace, resource.ObjectName, gvr)
+			if err != nil {
+				log.Println("labeler.go: error (setLabel):", err)
+				return err
+			}
+		}
 	}
 	return nil
 }

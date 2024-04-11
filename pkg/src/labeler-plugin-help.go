@@ -20,7 +20,7 @@ func (p ParamsStruct) PluginHelp(reflect bool) []string {
 			flagWidth := 35
 			value1Width := 10
 			formatString := fmt.Sprintf("    %%-%ds  %%-%ds  %%s\n", flagWidth, value1Width)
-			log.Printf(formatString, v[0], "("+v[1]+")", strings.Join(v[2:], ","))
+			log.Printf(formatString, "--"+v[0], "("+v[1]+")", strings.Join(v[2:], ","))
 		}
 	}
 	log.Println()

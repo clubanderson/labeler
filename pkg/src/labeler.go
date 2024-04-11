@@ -15,7 +15,15 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var version = "0.12.0"
+var version = "0.13.0"
+
+type ResourceStruct struct {
+	Group      string
+	Version    string
+	Resource   string
+	Namespace  string
+	ObjectName string
+}
 
 type ParamsStruct struct {
 	homeDir       string
@@ -26,7 +34,7 @@ type ParamsStruct struct {
 	DynamicClient *dynamic.DynamicClient
 	flags         map[string]bool
 	params        map[string]string
-	resources     map[string]string
+	resources     map[ResourceStruct]string
 	pluginArgs    map[string][]string
 	pluginPtrs    map[string]reflect.Value
 }
@@ -83,9 +91,8 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	args = os.Args[1:]
 	p.flags = make(map[string]bool)
 	p.params = make(map[string]string)
-	p.resources = make(map[string]string)
+	p.resources = make(map[ResourceStruct]string)
 	p.pluginArgs = make(map[string][]string)
-	p.pluginArgs["labeler"] = []string{"label,string,label key and value to be applied to objects (usage: --label=app.kubernetes.io/part-of=sample)"}
 	p.pluginPtrs = make(map[string]reflect.Value)
 
 	p.getPluginNamesAndArgs()
@@ -163,20 +170,33 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		log.Println()
 	}
 
-	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
-		p.params["namespaceArg"] = ""
-		if p.params["namespace"] != "" {
-			p.params["namespaceArg"] = p.params["namespace"]
-		} else if p.params["n"] != "" {
-			p.params["namespaceArg"] = p.params["n"]
-		}
-		if p.params["namespaceArg"] == "" {
-			p.params["namespaceArg"] = "default"
-		}
+	p.params["namespaceArg"] = ""
+	if p.params["namespace"] != "" {
+		p.params["namespaceArg"] = p.params["namespace"]
+	} else if p.params["n"] != "" {
+		p.params["namespaceArg"] = p.params["n"]
+	}
+	if p.params["namespaceArg"] == "" {
+		p.params["namespaceArg"] = "default"
+	}
+	resource := ResourceStruct{
+		Group:      "",
+		Version:    "v1",
+		Resource:   "namespaces",
+		Namespace:  "",
+		ObjectName: p.params["namespaceArg"],
+	}
+	p.resources[resource] = "apiVersion"
 
+	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
+
+		if p.flags["l-debug"] {
+			log.Printf("labeler.go: [debug] namespaceArg: %v", p.params["namespaceArg"])
+		}
 		// remove the following args for both helm and kubectl because they do not recognize them
 		for i := 0; i < len(args); i++ {
 			// log.Printf("args: %v", args[i])
+			// remove all labeler flags
 			if strings.HasPrefix(args[i], "--l-") {
 				args = append(args[:i], args[i+1:]...)
 				i--
@@ -217,11 +237,9 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			}
 
 			p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
-
-			// Format the output
 			output := strings.TrimSpace(string(out))
 			lines := strings.Split(output, "\n")
-			p.setLabelKubectl(lines)
+			p.traverseKubectlOutput(lines)
 
 		} else if args[0] == "helm" {
 			// run the original helm command without the extra labeler flags
@@ -234,48 +252,18 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			// log.Printf("labeler.go: helm output: %v\n", string(output))
 
 			// now run helm as template and label the output
-			originalCommand := strings.Join(args, " ")
-			p.originalCmd = originalCommand
+			templateOutput := p.runHelmInTemplateMode(args)
 
-			if p.flags["l-debug"] {
-				log.Printf("labeler.go: [debug] original command: %v\n", originalCommand)
-			}
-			modifiedCommand := strings.Replace(originalCommand, " install ", " template ", 1)
-			modifiedCommand = strings.Replace(modifiedCommand, " upgrade ", " template ", 1)
-			modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
-			if p.flags["l-debug"] {
-				log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommandComponents)
-			}
-
-			output, err = p.runCmd("helm", modifiedCommandComponents)
-			if err != nil {
-				// log.Println("labeler.go: error (run helm):", err)
-				os.Exit(1)
-			}
-
+			// set the context and get the helm output into the resources map
 			p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
-
-			err = p.traverseInputAndLabel(strings.NewReader(string(output)), os.Stdout)
+			err = p.traverseHelmOutput(strings.NewReader(string(templateOutput)), os.Stdout)
 			if err != nil {
 				log.Println("labeler.go: error (to traverseInput):", err)
 				return err
 			}
 
 		}
-		if p.params["namespaceArg"] != "" && p.params["namespaceArg"] != "default" && (p.flags["upgrade"] || p.flags["install"] || p.flags["apply"] || p.flags["create"] || p.flags["replace"]) {
-			err := p.setLabelNamespace()
-			if err != nil {
-				log.Println("labeler.go: error (set label namespace):", err)
-				return err
-			}
-		}
 
-		if len(runResults.didNotLabel) > 0 {
-			log.Printf("\nlabeler.go: The following resources do not exist and can be labeled at a later time:\n\n")
-			for _, cmd := range runResults.didNotLabel {
-				log.Printf(cmd)
-			}
-		}
 		combined := make(map[string]bool)
 		for key, value := range p.flags {
 			combined[key] = value
@@ -283,7 +271,6 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		for key := range p.params {
 			combined[key] = true
 		}
-
 		if p.flags["l-debug"] {
 			for key, value := range p.pluginPtrs {
 				log.Printf("labeler.go: key: %v, value: %v\n", key, value)
@@ -312,6 +299,28 @@ func (p ParamsStruct) aliasRun(args []string) error {
 
 	}
 	return nil
+}
+
+func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
+	originalCommand := strings.Join(args, " ")
+	p.originalCmd = originalCommand
+
+	if p.flags["l-debug"] {
+		log.Printf("labeler.go: [debug] original command: %v\n", originalCommand)
+	}
+	modifiedCommand := strings.Replace(originalCommand, " install ", " template ", 1)
+	modifiedCommand = strings.Replace(modifiedCommand, " upgrade ", " template ", 1)
+	modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
+	if p.flags["l-debug"] {
+		log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommandComponents)
+	}
+
+	output, err := p.runCmd("helm", modifiedCommandComponents)
+	if err != nil {
+		// log.Println("labeler.go: error (run helm):", err)
+		os.Exit(1)
+	}
+	return output
 }
 
 func main() {
