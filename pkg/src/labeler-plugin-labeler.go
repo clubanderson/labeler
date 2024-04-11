@@ -18,31 +18,6 @@ func (p ParamsStruct) PluginLabeler(reflect bool) []string {
 		return []string{"label,string,label key and value to be applied to objects (usage: --label=app.kubernetes.io/part-of=sample)"}
 	}
 
-	// 	// todo - this logic is not working right. should only label the namespace if installmode is true and dryrunmode is false - I am not doing something right in the following if statement
-	// 	// because it is always true - and I am not sure why
-	// 	// log.Printf("labeler.go: dryrunMode: %v, templateMode: %v, installMode: %v\n", p.dryrunMode, p.templateMode, p.installMode)
-	// 	namespace := ""
-	// 	if p.params["namespace"] != "" {
-	// 		namespace = p.params["namespace"]
-	// 	} else if p.params["n"] != "" {
-	// 		namespace = p.params["n"]
-	// 	}
-
-	// 	if p.flags["install"] && !p.flags["dry-run"] {
-	// 		// log.Printf("labeler.go: patching namespace %q with %v=%v %q %q %q %v\n", p.namespace, p.params["labelKey"], p.params["labelVal"], gvr.Resource, gvr.Version, gvr.Group, string(patch))
-	// 		_, err = p.DynamicClient.Resource(gvr).Patch(context.TODO(), namespace, types.MergePatchType, patch, metav1.PatchOptions{})
-	// 	}
-	// 	if err != nil {
-	// 		if p.flags["install"] && !p.flags["dry-run"] {
-	// 			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, namespace, p.params["labelKey"], p.params["labelVal"])
-	// 			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
-	// 		}
-	// 	} else {
-	// 		log.Printf("  🏷️ labeled object %v/%v/%v %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, namespace, p.params["labelKey"], p.params["labelVal"])
-	// 	}
-	// 	return nil
-	// }
-
 	if p.params["labelKey"] != "" && p.params["labelVal"] != "" && (p.flags["upgrade"] || p.flags["install"] || p.flags["apply"] || p.flags["create"] || p.flags["replace"]) {
 		for resource, _ := range p.resources {
 			gvr := schema.GroupVersionResource{
