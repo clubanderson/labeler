@@ -262,7 +262,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			}
 
 		}
-		if p.params["namespaceArg"] != "" && p.params["namespaceArg"] != "default" {
+		if p.params["namespaceArg"] != "" && p.params["namespaceArg"] != "default" && (p.flags["upgrade"] || p.flags["install"] || p.flags["apply"] || p.flags["create"] || p.flags["replace"]) {
 			err := p.setLabelNamespace()
 			if err != nil {
 				log.Println("labeler.go: error (set label namespace):", err)
