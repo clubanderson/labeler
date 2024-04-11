@@ -6,3 +6,4 @@ exec
 .DS_Store
 /.cache/
 /tests/.cache/
+/bin
