@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var version = "0.11.0"
+var version = "0.12.0"
 
 type ParamsStruct struct {
 	homeDir       string
