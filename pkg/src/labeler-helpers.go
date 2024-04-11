@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
@@ -20,6 +22,42 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+func (p ParamsStruct) getPluginNamesAndArgs() {
+	t := reflect.TypeOf(p)
+	// Iterate through the methods of the struct
+	for i := 0; i < t.NumMethod(); i++ {
+		// Get the method
+		method := t.Method(i)
+		fnValue := reflect.ValueOf(method.Func.Interface())
+
+		if strings.HasPrefix(method.Name, "Plugin") {
+			// log.Println("labeler.go: method.Name:", method.Name)
+			args := []reflect.Value{reflect.ValueOf(p), reflect.ValueOf(true)}
+			result := fnValue.Call(args)
+			for _, rv := range result {
+				v := rv.Interface()
+				p.pluginArgs[method.Name] = v.([]string)
+				p.pluginPtrs[method.Name] = fnValue
+			}
+		}
+	}
+}
+
+func getFile() (*os.File, error) {
+	if flags.filepath == "" {
+		return nil, errors.New("labeler.go: please input a file")
+	}
+	if !fileExists(flags.filepath) {
+		return nil, errors.New("labeler.go: the file provided does not exist")
+	}
+	file, e := os.Open(flags.filepath)
+	if e != nil {
+		return nil, errors.Wrapf(e,
+			"labeler.go: unable to read the file %s", flags.filepath)
+	}
+	return file, nil
+}
 
 func isYAML(line string) bool {
 	// Check if the line starts with "---" or starts with whitespace followed by "-"
