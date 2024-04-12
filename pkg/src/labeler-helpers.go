@@ -122,21 +122,23 @@ func (p ParamsStruct) traverseKubectlOutput(input []string) {
 			Namespace:  namespace,
 			ObjectName: objectName,
 		}
-		p.resources[resource] = []byte("apiVersion")
+		p.addObjectsToResourcesAfterKubectlApply(resource)
 	}
 }
 
-func (p ParamsStruct) getObjectsAfterKubectlApply() {
-	for r, v := range p.resources {
-		_ = v
-		gvr := schema.GroupVersionResource{
-			Group:    r.Group,
-			Version:  r.Version,
-			Resource: r.Resource,
-		}
-		yamlBytes, _ := p.getObject(p.DynamicClient, r.Namespace, gvr, r.ObjectName)
-		p.resources[r] = yamlBytes
+func (p ParamsStruct) addObjectsToResourcesAfterKubectlApply(r ResourceStruct) {
+	gvr := schema.GroupVersionResource{
+		Group:    r.Group,
+		Version:  r.Version,
+		Resource: r.Resource,
 	}
+	yamlBytes, err := p.getObject(p.DynamicClient, r.Namespace, gvr, r.ObjectName)
+	if err != nil {
+		log.Printf("labeler.go: error getting object: %v\n", err)
+		// os.Exit(1)
+	}
+	// log.Printf("labeler.go: resource: %v %v\n", r, string(yamlBytes))
+	p.resources[r] = yamlBytes
 }
 
 func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
