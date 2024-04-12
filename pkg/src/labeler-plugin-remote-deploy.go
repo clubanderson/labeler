@@ -39,7 +39,7 @@ func (p ParamsStruct) PluginRemoteDeployTo(reflect bool) []string {
 					log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommand)
 				}
 
-				output, err := p.runCmd("kubectl", modifiedCommand[1:])
+				output, err := p.runCmd("kubectl", modifiedCommand[1:], false)
 				if err != nil {
 					log.Println(err)
 				} else {
@@ -70,7 +70,7 @@ func (p ParamsStruct) PluginRemoteDeployTo(reflect bool) []string {
 					log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommand)
 				}
 
-				output, err := p.runCmd("helm", modifiedCommand[1:])
+				output, err := p.runCmd("helm", modifiedCommand[1:], false)
 				if err != nil {
 					log.Println(err)
 				} else {

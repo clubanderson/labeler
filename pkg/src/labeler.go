@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"os/user"
 	"reflect"
 	"strings"
@@ -16,7 +15,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var version = "0.15.0"
+var version = "0.16.0"
 
 type ResourceStruct struct {
 	Group      string
@@ -30,6 +29,7 @@ type ParamsStruct struct {
 	homeDir       string
 	path          string
 	originalCmd   string
+	kubeconfig    string
 	ClientSet     *kubernetes.Clientset
 	RestConfig    *rest.Config
 	DynamicClient *dynamic.DynamicClient
@@ -209,8 +209,8 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		if p.flags["l-debug"] {
 			log.Println("labeler.go: [debug] before args: ", args)
 		}
-		// Run the command with the parsed flags
 
+		// Run the command with the parsed flags
 		if args[0] == "k" || args[0] == "kubectl" {
 			if p.flags["l-debug"] {
 				log.Println("labeler.go: [debug] after args: ", args)
@@ -219,13 +219,12 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			originalCommand := strings.Join(args, " ")
 			p.originalCmd = originalCommand
 
-			cmd := exec.Command(args[0], args[1:]...)
-			out, err := cmd.CombinedOutput()
+			// cmd := exec.Command(args[0], args[1:]...)
+			out, err := p.runCmd(args[0], args[1:], false)
+			// out, err := cmd.CombinedOutput()
 			if err != nil {
-				fmt.Printf("%v", string(out))
+				// fmt.Printf("%v", string(out))
 				os.Exit(1)
-			} else {
-				fmt.Printf("%v", string(out))
 			}
 
 			p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
@@ -235,12 +234,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 
 		} else if args[0] == "helm" {
 			// run the original helm command without the extra labeler flags
-			output, err := p.runCmd("helm", args[1:])
+			_, err := p.runCmd("helm", args[1:], false)
 			if err != nil {
-				log.Println(err)
+				// log.Println(err)
 				os.Exit(1)
-			} else {
-				fmt.Printf("%v", string(output))
 			}
 
 			// now run helm as template and label the output
@@ -277,6 +274,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 					v := strings.Split(vCSV, ",")
 					if key == v[0] {
 						if p.pluginPtrs[pkey].IsValid() {
+							log.Printf("\nlabeler plugin: %q:\n\n", pkey)
 							p.pluginPtrs[pkey].Call(fnArgs)
 						}
 					}

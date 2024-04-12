@@ -90,7 +90,7 @@ func (p ParamsStruct) PluginCreateMW(reflect bool) []string {
 		log.Printf("  🚀 Attempting to create %v object %q in namespace %q", k, n, p.params["namespaceArg"])
 		p.createObjForPlugin(gvk, yamlData, n, r, p.params["namespaceArg"])
 	} else {
-		fmt.Println(string(yamlData))
+		fmt.Printf("%v", string(yamlData))
 	}
 	return []string{}
 }

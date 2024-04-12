@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -197,7 +198,7 @@ func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
 		log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommandComponents)
 	}
 
-	output, err := p.runCmd("helm", modifiedCommandComponents)
+	output, err := p.runCmd("helm", modifiedCommandComponents, true)
 	if err != nil {
 		// log.Println("labeler.go: error (run helm):", err)
 		os.Exit(1)
@@ -395,7 +396,7 @@ func (p ParamsStruct) createCachedDiscoveryClient(restConfigCoreOrWds rest.Confi
 
 func (p ParamsStruct) useContext(contextName string) {
 	setContext := []string{"config", "use-context", contextName}
-	_, err := p.runCmd("kubectl", setContext)
+	_, err := p.runCmd("kubectl", setContext, false)
 	if err != nil {
 		// log.Printf("   🔴 error setting kubeconfig's current context: %v\n", err)
 	} else {
@@ -429,14 +430,36 @@ func DecodeYAML(yamlBytes []byte) (*unstructured.Unstructured, error) {
 	return obj, nil
 }
 
-func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) {
+func expandTilde(args []string) []string {
+	for i, arg := range args {
+		if strings.Contains(arg, "~") {
+			usr, err := user.Current()
+			if err != nil {
+				log.Printf("Error getting current user: %v\n", err)
+				return args
+			}
+			args[i] = strings.ReplaceAll(args[i], "~", usr.HomeDir)
+		}
+	}
+	return args
+}
+
+func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string, suppressOutput bool) ([]byte, error) {
+	cmdArgs = expandTilde(cmdArgs)
+
 	cmd := exec.Command(cmdToRun, cmdArgs...)
 	cmd.Env = append(cmd.Env, "PATH="+p.path)
 	cmd.Env = append(cmd.Env, "HOME="+p.homeDir)
+	cmd.Env = append(cmd.Env, "KUBECONFIG="+os.Getenv("KUBECONFIG"))
 
 	var outputBuf bytes.Buffer
-	cmd.Stdout = io.MultiWriter(&outputBuf)
-	cmd.Stderr = io.MultiWriter(&outputBuf)
+	if suppressOutput {
+		cmd.Stdout = io.MultiWriter(&outputBuf)
+	} else {
+		cmd.Stdout = io.MultiWriter(&outputBuf, os.Stdout)
+	}
+	cmd.Stderr = io.MultiWriter(&outputBuf, os.Stderr)
+	cmd.Stdin = os.Stdin
 
 	err := cmd.Start()
 	if err != nil {
@@ -444,11 +467,11 @@ func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) 
 		return nil, err
 	}
 
-	// err = cmd.Wait()
-	// if err != nil {
-	// 	// log.Println("labeler.go: error waiting for command to complete:", err)
-	// 	log.Printf(string(outputBuf.Bytes()))
-	// 	return nil, err
-	// }
+	err = cmd.Wait()
+	if err != nil {
+		// log.Println("labeler.go: error waiting for command to complete:", err)
+		// log.Printf(string(outputBuf.Bytes()))
+		return nil, err
+	}
 	return outputBuf.Bytes(), nil
 }

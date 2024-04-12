@@ -99,7 +99,7 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 		modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
 		// log.Printf("labeler.go: modified command: %q\n", modifiedCommand)
 		// log.Printf("labeler.go: modified command components: %q\n", modifiedCommandComponents)
-		output, err := p.runCmd("helm", modifiedCommandComponents)
+		output, err := p.runCmd("helm", modifiedCommandComponents, true)
 		if err != nil {
 			// log.Println("labeler.go: error (running helm):", err)
 			os.Exit(1)
