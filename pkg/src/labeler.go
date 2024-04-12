@@ -221,10 +221,11 @@ func (p ParamsStruct) aliasRun(args []string) error {
 
 			cmd := exec.Command(args[0], args[1:]...)
 			out, err := cmd.CombinedOutput()
-			fmt.Printf("%v", string(out))
 			if err != nil {
 				fmt.Printf("%v", string(out))
 				os.Exit(1)
+			} else {
+				fmt.Printf("%v", string(out))
 			}
 
 			p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
@@ -235,12 +236,12 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		} else if args[0] == "helm" {
 			// run the original helm command without the extra labeler flags
 			output, err := p.runCmd("helm", args[1:])
-			fmt.Printf("%v", string(output))
 			if err != nil {
 				log.Println(err)
 				os.Exit(1)
+			} else {
+				fmt.Printf("%v", string(out))
 			}
-			// log.Printf("labeler.go: helm output: %v\n", string(output))
 
 			// now run helm as template and label the output
 			templateOutput := p.runHelmInTemplateMode(args)
