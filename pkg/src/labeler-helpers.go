@@ -126,6 +126,19 @@ func (p ParamsStruct) traverseKubectlOutput(input []string) {
 	}
 }
 
+func (p ParamsStruct) getObjectsAfterKubectlApply() {
+	for r, v := range p.resources {
+		_ = v
+		gvr := schema.GroupVersionResource{
+			Group:    r.Group,
+			Version:  r.Version,
+			Resource: r.Resource,
+		}
+		yamlBytes, _ := p.getObject(p.DynamicClient, r.Namespace, gvr, r.ObjectName)
+		p.resources[r] = yamlBytes
+	}
+}
+
 func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
 	originalCommand := strings.Join(args, " ")
 	p.originalCmd = originalCommand

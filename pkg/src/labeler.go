@@ -311,7 +311,7 @@ func (p ParamsStruct) addNamespaceToResources() error {
 		ObjectName: p.params["namespaceArg"],
 	}
 	namespaceYAML := Namespace{
-		APIVersion: resource.Version,
+		APIVersion: "v1",
 		Kind:       "namespace",
 		Metadata: Metadata{
 			Name: p.params["namespaceArg"],

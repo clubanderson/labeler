@@ -19,23 +19,23 @@ func (p ParamsStruct) PluginLabeler(reflect bool) []string {
 	}
 
 	if p.params["labelKey"] != "" && p.params["labelVal"] != "" && (p.flags["upgrade"] || p.flags["install"] || p.flags["apply"] || p.flags["create"] || p.flags["replace"]) {
-		for resource, val := range p.resources {
-			_ = val
+		for r, v := range p.resources {
+			_ = v
 			gvr := schema.GroupVersionResource{
-				Group:    resource.Group,
-				Version:  resource.Version,
-				Resource: resource.Resource,
+				Group:    r.Group,
+				Version:  r.Version,
+				Resource: r.Resource,
 			}
 			var err error
 			if gvr.Resource == "namespaces" {
-				if resource.ObjectName == "" || resource.ObjectName == "default" {
-					labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, resource.ObjectName, p.params["labelKey"], p.params["labelVal"])
+				if r.ObjectName == "" || r.ObjectName == "default" {
+					labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, r.ObjectName, p.params["labelKey"], p.params["labelVal"])
 					runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
 				} else {
-					err = p.setLabel(resource.Namespace, resource.ObjectName, gvr)
+					err = p.setLabel(r.Namespace, r.ObjectName, gvr)
 				}
 			} else {
-				err = p.setLabel(resource.Namespace, resource.ObjectName, gvr)
+				err = p.setLabel(r.Namespace, r.ObjectName, gvr)
 			}
 			if err != nil {
 				if p.flags["l-debug"] {
