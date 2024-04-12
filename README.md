@@ -56,10 +56,6 @@ After hacking at this for some time, I decided to come up with 2 approaches to r
     alias h="labeler helm"
 ```
   - optional - edit your rc file (./zshrc) (or just run these commands on your local shell)
-```
-    alias k='labeler kubectl'  # you could also replace 'kubectl' (looking into this)
-    alias h='labeler helm'     # you could also replace 'helm' (looking into this)
-```
 
 # 1 - Labeler as an alias to kubectl and helm
 
