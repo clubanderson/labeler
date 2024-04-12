@@ -444,11 +444,11 @@ func (p ParamsStruct) runCmd(cmdToRun string, cmdArgs []string) ([]byte, error) 
 		return nil, err
 	}
 
-	err = cmd.Wait()
-	if err != nil {
-		// log.Println("labeler.go: error waiting for command to complete:", err)
-		log.Printf(string(outputBuf.Bytes()))
-		return nil, err
-	}
+	// err = cmd.Wait()
+	// if err != nil {
+	// 	// log.Println("labeler.go: error waiting for command to complete:", err)
+	// 	log.Printf(string(outputBuf.Bytes()))
+	// 	return nil, err
+	// }
 	return outputBuf.Bytes(), nil
 }

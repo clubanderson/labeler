@@ -240,7 +240,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				log.Println(err)
 				os.Exit(1)
 			} else {
-				fmt.Printf("%v", string(out))
+				fmt.Printf("%v", string(output))
 			}
 
 			// now run helm as template and label the output
