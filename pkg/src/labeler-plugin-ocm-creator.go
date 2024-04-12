@@ -24,15 +24,11 @@ type mwMetadata struct {
 }
 
 type Workload struct {
-	Manifests []Manifest `yaml:"manifests"`
+	Manifests []map[string]interface{} `yaml:"manifests"`
 }
 
 type Manifest struct {
-	RawExtension `yaml:",inline"`
-}
-
-type RawExtension struct {
-	Raw []byte `yaml:",inline"`
+	YAML string `yaml:"-"`
 }
 
 func (p ParamsStruct) PluginCreateMW(reflect bool) []string {
@@ -68,11 +64,21 @@ func (p ParamsStruct) PluginCreateMW(reflect bool) []string {
 		},
 		Spec: mwSpec{
 			Workload: Workload{
-				Manifests: []Manifest{},
+				Manifests: []map[string]interface{}{},
 			},
 		},
 	}
 	// need a loop to fill in the manifests with the objects from debug run of kubectl or helm
+
+	for _, yamlData := range p.resources {
+		var obj map[string]interface{}
+		err := yaml.Unmarshal(yamlData, &obj)
+		if err != nil {
+			log.Printf("Error unmarshaling YAML: %v", err)
+			continue
+		}
+		manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, obj)
+	}
 
 	yamlData, err := yaml.Marshal(manifestWork)
 	if err != nil {

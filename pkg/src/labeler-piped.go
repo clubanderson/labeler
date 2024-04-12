@@ -59,7 +59,8 @@ func (p ParamsStruct) detectInput() error {
 				log.Println("labeler.go: error (traverseinput):", err)
 				return err
 			}
-			for resource, _ := range p.resources {
+			for resource, val := range p.resources {
+				_ = val
 				gvr := schema.GroupVersionResource{
 					Group:    resource.Group,
 					Version:  resource.Version,
@@ -121,7 +122,8 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 			log.Println("labeler.go: error (to traverseInput):", err)
 			return err
 		}
-		for resource, _ := range p.resources {
+		for resource, val := range p.resources {
+			_ = val
 			gvr := schema.GroupVersionResource{
 				Group:    resource.Group,
 				Version:  resource.Version,
@@ -135,7 +137,8 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 		}
 	} else if cmdFound == "kubectl" || cmdFound == "kustomize" {
 		p.traverseKubectlOutput(input)
-		for resource, _ := range p.resources {
+		for resource, val := range p.resources {
+			_ = val
 			gvr := schema.GroupVersionResource{
 				Group:    resource.Group,
 				Version:  resource.Version,

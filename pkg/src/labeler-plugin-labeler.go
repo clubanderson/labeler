@@ -19,7 +19,8 @@ func (p ParamsStruct) PluginLabeler(reflect bool) []string {
 	}
 
 	if p.params["labelKey"] != "" && p.params["labelVal"] != "" && (p.flags["upgrade"] || p.flags["install"] || p.flags["apply"] || p.flags["create"] || p.flags["replace"]) {
-		for resource, _ := range p.resources {
+		for resource, val := range p.resources {
+			_ = val
 			gvr := schema.GroupVersionResource{
 				Group:    resource.Group,
 				Version:  resource.Version,

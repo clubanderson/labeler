@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
@@ -122,7 +122,7 @@ func (p ParamsStruct) traverseKubectlOutput(input []string) {
 			Namespace:  namespace,
 			ObjectName: objectName,
 		}
-		p.resources[resource] = "apiVersion"
+		p.resources[resource] = []byte("apiVersion")
 	}
 }
 
@@ -184,7 +184,8 @@ func (p ParamsStruct) traverseHelmOutput(r io.Reader, w io.Writer) error {
 			Namespace:  runtimeObj.GetNamespace(),
 			ObjectName: runtimeObj.GetName(),
 		}
-		p.resources[resource] = "apiVersion"
+		p.resources[resource] = yamlBytes
+		// log.Printf("labeler.go: resource: %v %v\n", resource, string(yamlBytes))
 
 		// if err != nil {
 		// 	// objName := strings.ReplaceAll(runtimeObj.GetName(), "release-name-", starHelmChartReleaseName+"-")

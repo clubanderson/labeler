@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -34,7 +35,7 @@ type ParamsStruct struct {
 	DynamicClient *dynamic.DynamicClient
 	flags         map[string]bool
 	params        map[string]string
-	resources     map[ResourceStruct]string
+	resources     map[ResourceStruct][]byte
 	pluginArgs    map[string][]string
 	pluginPtrs    map[string]reflect.Value
 }
@@ -87,11 +88,17 @@ var flagsName = struct {
 	overwriteShort:  "o",
 }
 
+type Namespace struct {
+	APIVersion string   `yaml:"apiVersion"`
+	Kind       string   `yaml:"kind"`
+	Metadata   Metadata `yaml:"metadata"`
+}
+
 func (p ParamsStruct) aliasRun(args []string) error {
 	args = os.Args[1:]
 	p.flags = make(map[string]bool)
 	p.params = make(map[string]string)
-	p.resources = make(map[ResourceStruct]string)
+	p.resources = make(map[ResourceStruct][]byte)
 	p.pluginArgs = make(map[string][]string)
 	p.pluginPtrs = make(map[string]reflect.Value)
 
@@ -179,6 +186,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	if p.params["namespaceArg"] == "" {
 		p.params["namespaceArg"] = "default"
 	}
+
 	resource := ResourceStruct{
 		Group:      "",
 		Version:    "v1",
@@ -186,7 +194,20 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		Namespace:  "",
 		ObjectName: p.params["namespaceArg"],
 	}
-	p.resources[resource] = "apiVersion"
+	namespaceYAML := Namespace{
+		APIVersion: resource.Version,
+		Kind:       "namespace",
+		Metadata: Metadata{
+			Name: p.params["namespaceArg"],
+		},
+	}
+	yamlData, err := yaml.Marshal(namespaceYAML)
+	if err != nil {
+		fmt.Println("Error marshaling YAML:", err)
+		return err
+	}
+
+	p.resources[resource] = yamlData
 
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
 
