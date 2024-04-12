@@ -126,6 +126,28 @@ func (p ParamsStruct) traverseKubectlOutput(input []string) {
 	}
 }
 
+func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
+	originalCommand := strings.Join(args, " ")
+	p.originalCmd = originalCommand
+
+	if p.flags["l-debug"] {
+		log.Printf("labeler.go: [debug] original command: %v\n", originalCommand)
+	}
+	modifiedCommand := strings.Replace(originalCommand, " install ", " template ", 1)
+	modifiedCommand = strings.Replace(modifiedCommand, " upgrade ", " template ", 1)
+	modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
+	if p.flags["l-debug"] {
+		log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommandComponents)
+	}
+
+	output, err := p.runCmd("helm", modifiedCommandComponents)
+	if err != nil {
+		// log.Println("labeler.go: error (run helm):", err)
+		os.Exit(1)
+	}
+	return output
+}
+
 func (p ParamsStruct) traverseHelmOutput(r io.Reader, w io.Writer) error {
 	mapper, _ := p.createCachedDiscoveryClient(*p.RestConfig)
 

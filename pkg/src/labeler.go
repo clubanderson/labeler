@@ -177,37 +177,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 		log.Println()
 	}
 
-	p.params["namespaceArg"] = ""
-	if p.params["namespace"] != "" {
-		p.params["namespaceArg"] = p.params["namespace"]
-	} else if p.params["n"] != "" {
-		p.params["namespaceArg"] = p.params["n"]
-	}
-	if p.params["namespaceArg"] == "" {
-		p.params["namespaceArg"] = "default"
-	}
-
-	resource := ResourceStruct{
-		Group:      "",
-		Version:    "v1",
-		Resource:   "namespaces",
-		Namespace:  "",
-		ObjectName: p.params["namespaceArg"],
-	}
-	namespaceYAML := Namespace{
-		APIVersion: resource.Version,
-		Kind:       "namespace",
-		Metadata: Metadata{
-			Name: p.params["namespaceArg"],
-		},
-	}
-	yamlData, err := yaml.Marshal(namespaceYAML)
-	if err != nil {
-		fmt.Println("Error marshaling YAML:", err)
-		return err
-	}
-
-	p.resources[resource] = yamlData
+	p.addNamespaceToResources()
 
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
 
@@ -322,26 +292,39 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	return nil
 }
 
-func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
-	originalCommand := strings.Join(args, " ")
-	p.originalCmd = originalCommand
-
-	if p.flags["l-debug"] {
-		log.Printf("labeler.go: [debug] original command: %v\n", originalCommand)
+func (p ParamsStruct) addNamespaceToResources() error {
+	p.params["namespaceArg"] = ""
+	if p.params["namespace"] != "" {
+		p.params["namespaceArg"] = p.params["namespace"]
+	} else if p.params["n"] != "" {
+		p.params["namespaceArg"] = p.params["n"]
 	}
-	modifiedCommand := strings.Replace(originalCommand, " install ", " template ", 1)
-	modifiedCommand = strings.Replace(modifiedCommand, " upgrade ", " template ", 1)
-	modifiedCommandComponents := append(strings.Split(modifiedCommand, " ")[1:])
-	if p.flags["l-debug"] {
-		log.Printf("labeler.go: [debug] modified command components: %v\n", modifiedCommandComponents)
+	if p.params["namespaceArg"] == "" {
+		p.params["namespaceArg"] = "default"
 	}
 
-	output, err := p.runCmd("helm", modifiedCommandComponents)
+	resource := ResourceStruct{
+		Group:      "",
+		Version:    "v1",
+		Resource:   "namespaces",
+		Namespace:  "",
+		ObjectName: p.params["namespaceArg"],
+	}
+	namespaceYAML := Namespace{
+		APIVersion: resource.Version,
+		Kind:       "namespace",
+		Metadata: Metadata{
+			Name: p.params["namespaceArg"],
+		},
+	}
+	yamlData, err := yaml.Marshal(namespaceYAML)
 	if err != nil {
-		// log.Println("labeler.go: error (run helm):", err)
-		os.Exit(1)
+		fmt.Println("Error marshaling YAML:", err)
+		return err
 	}
-	return output
+
+	p.resources[resource] = yamlData
+	return nil
 }
 
 func main() {
