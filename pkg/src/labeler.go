@@ -193,17 +193,21 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				i--
 			}
 			if strings.HasPrefix(args[i], "--label") {
-				p.params["labelKey"] = strings.Split(args[i], "=")[1]
-				p.params["labelVal"] = strings.Split(args[i], "=")[2]
-				args = append(args[:i], args[i+1:]...)
-				i--
+				if strings.Contains(args[i], "=") {
+					p.params["labelKey"] = strings.Split(args[i], "=")[1]
+					p.params["labelVal"] = strings.Split(args[i], "=")[2]
+					args = append(args[:i], args[i+1:]...)
+					i--
+				}
 			}
 			if strings.HasPrefix(args[i], "-l") {
-				p.params["labelKey"] = strings.Split(args[i+1], "=")[0]
-				p.params["labelVal"] = strings.Split(args[i+1], "=")[1]
-				args = append(args[:i], args[i+2:]...)
-				i--
-				i--
+				if len(args) > i+1 && !strings.HasPrefix(args[i+1], "-") {
+					p.params["labelKey"] = strings.Split(args[i+1], "=")[0]
+					p.params["labelVal"] = strings.Split(args[i+1], "=")[1]
+					args = append(args[:i], args[i+2:]...)
+					i--
+					i--
+				}
 			}
 		}
 		if p.flags["l-debug"] {
@@ -285,6 +289,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 			for key, value := range p.resources {
 				fmt.Printf("labeler.go: [debug] resources: Key: %s, Value: %s\n", key, value)
 			}
+		}
+		if p.params["l"] != "" {
+			log.Printf("\nlabeler plugin: %q:\n\n", "PluginLabeler")
+			p.PluginLabeler(false)
 		}
 
 	}
