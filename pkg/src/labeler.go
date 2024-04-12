@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var version = "0.16.0"
+var version = "0.17.0"
 
 type ResourceStruct struct {
 	Group      string
