@@ -137,8 +137,50 @@ func (p ParamsStruct) addObjectsToResourcesAfterKubectlApply(r ResourceStruct) {
 		log.Printf("labeler.go: error getting object: %v\n", err)
 		// os.Exit(1)
 	}
-	// log.Printf("labeler.go: resource: %v %v\n", r, string(yamlBytes))
-	p.resources[r] = yamlBytes
+	// Define the fields to remove from metadata
+	fieldsToRemove := []string{"creationTimestamp", "generation", "managedFields", "resourceVersion", "selfLink", "uid"}
+	annotationsToRemove := []string{"kubectl.kubernetes.io/last-applied-configuration"}
+
+	// Unmarshal YAML into a map
+	var objMap map[string]interface{}
+	err = yaml.Unmarshal(yamlBytes, &objMap)
+	if err != nil {
+		log.Printf("labeler.go: error unmarshaling YAML: %v\n", err)
+		return
+	}
+
+	// Check if metadata field exists
+	metadata, ok := objMap["metadata"].(map[string]interface{})
+	if !ok {
+		log.Println("labeler.go: metadata field not found or not a map[string]interface{}")
+		return
+	}
+
+	// Remove specified fields from metadata
+	for _, field := range fieldsToRemove {
+		delete(metadata, field)
+	}
+
+	// Check if annotations field exists within metadata
+	annotations, ok := metadata["annotations"].(map[string]interface{})
+	if !ok {
+		log.Println("labeler.go: annotations field not found or not a map[string]interface{}")
+		return
+	}
+
+	// Remove the specified annotation
+	for _, field := range annotationsToRemove {
+		delete(annotations, field)
+	}
+
+	// Marshal the modified object back to YAML
+	modifiedYAMLBytes, err := yaml.Marshal(objMap)
+	if err != nil {
+		log.Printf("labeler.go: error marshaling YAML: %v\n", err)
+		return
+	}
+
+	p.resources[r] = modifiedYAMLBytes
 }
 
 func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
