@@ -13,16 +13,17 @@ import (
 	"plugin"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	c "github.com/clubanderson/labeler/pkg/common"
 
-	_ "github.com/clubanderson/labeler/pkg/plugin-bp-creator"
-	_ "github.com/clubanderson/labeler/pkg/plugin-help"
-	_ "github.com/clubanderson/labeler/pkg/plugin-ocm-creator"
-	_ "github.com/clubanderson/labeler/pkg/plugin-remote-deploy"
+	pluginBPcreator "github.com/clubanderson/labeler/pkg/plugin-bp-creator"
+	pluginHelp "github.com/clubanderson/labeler/pkg/plugin-help"
+	pluginOCMcreator "github.com/clubanderson/labeler/pkg/plugin-ocm-creator"
+	pluginRemoteDeploy "github.com/clubanderson/labeler/pkg/plugin-remote-deploy"
 
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -38,6 +39,19 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+type PluginFunction struct {
+	Name     string
+	Function interface{}
+}
+
+var pluginFunctions = []interface{}{
+	pluginHelp.PluginHelp,
+	pluginBPcreator.PluginCreateBP,
+	pluginOCMcreator.PluginCreateMW,
+	pluginRemoteDeploy.PluginRemoteDeployTo,
+	// Add other plugin functions here as needed
+}
 
 func AliasRun(args []string, p c.ParamsStruct) error {
 	// args = os.Args[1:]
@@ -600,25 +614,32 @@ func setLabel(namespace, objectName string, gvr schema.GroupVersionResource, p c
 }
 
 func getPluginNamesAndArgs(p c.ParamsStruct) {
-	t := reflect.TypeOf(p)
-	// Iterate through the methods of the struct
-	for i := 0; i < t.NumMethod(); i++ {
-		// Get the method
-		method := t.Method(i)
-		log.Printf("labeler.go: method.Name: %v\n", method.Name)
-		fnValue := reflect.ValueOf(method.Func.Interface())
+	for _, pluginFunc := range pluginFunctions {
+		// t := reflect.TypeOf(pluginFunc)
+		ptr := reflect.ValueOf(pluginFunc).Pointer()
+		methodName := runtime.FuncForPC(ptr).Name()
+		parts := strings.Split(methodName, ".")
+		methodName = parts[len(parts)-1]
+		// log.Printf("labeler.go: funcName: %v %v\n", methodName, ptr)
+		// Iterate through the methods of the struct
+		// for i := 0; i < t.NumMethod(); i++ {
+		// 	// Get the method
+		// 	method := t.Method(i)
+		// 	log.Printf("labeler.go: method.Name: %v\n", method.Name)
+		fnValue := reflect.ValueOf(pluginFunc)
 
-		if strings.HasPrefix(method.Name, "Plugin") {
+		if strings.HasPrefix(methodName, "Plugin") {
 			// log.Println("labeler.go: method.Name:", method.Name)
 			args := []reflect.Value{reflect.ValueOf(p), reflect.ValueOf(true)}
 			result := fnValue.Call(args)
 			for _, rv := range result {
 				v := rv.Interface()
-				p.PluginArgs[method.Name] = v.([]string)
-				p.PluginPtrs[method.Name] = fnValue
+				p.PluginArgs[methodName] = v.([]string)
+				p.PluginPtrs[methodName] = fnValue
 			}
 		}
 	}
+	// }
 }
 
 func getFile() (*os.File, error) {
