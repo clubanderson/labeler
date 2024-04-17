@@ -104,12 +104,7 @@ var FlagsName = struct {
 }
 
 type Metadata struct {
-	// Define fields for the Metadata type
-	// Example fields:
-	Name        string            `yaml:"name"`
-	Namespace   string            `yaml:"namespace"`
-	Labels      map[string]string `yaml:"labels"`
-	Annotations map[string]string `yaml:"annotations"`
+	Name string `yaml:"name"`
 }
 
 type Namespace struct {

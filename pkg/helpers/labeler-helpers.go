@@ -409,6 +409,7 @@ func addObjectsToResourcesAfterKubectlApply(r c.ResourceStruct, p c.ParamsStruct
 		Version:  r.Version,
 		Resource: r.Resource,
 	}
+	// log.Printf("labeler.go: getting object %v/%v/%v %q\n", gvr.Group, gvr.Version, gvr.Resource, r.ObjectName)
 	yamlBytes, err := p.GetObject(p.DynamicClient, r.Namespace, gvr, r.ObjectName)
 	if err != nil {
 		log.Printf("labeler.go: error getting object: %v\n", err)
@@ -689,14 +690,15 @@ func SwitchContext(p c.ParamsStruct) (*kubernetes.Clientset, *rest.Config, *dyna
 		os.Exit(1)
 	}
 
-	if c.Flags.Context != "" {
+	// log.Printf("labeler.go: current context: %q %q %q\n", apiConfig.CurrentContext, c.Flags.Context, p.Params["context"])
+	if p.Params["context"] != "" {
 		// check if the specified context exists in the kubeconfig
-		if _, exists := apiConfig.Contexts[c.Flags.Context]; !exists {
-			log.Printf("labeler.go: context %q does not exist in the kubeconfig\n", c.Flags.Context)
+		if _, exists := apiConfig.Contexts[p.Params["context"]]; !exists {
+			log.Printf("labeler.go: context %q does not exist in the kubeconfig\n", p.Params["context"])
 			os.Exit(1)
 		}
 		// switch the current context in the kubeconfig
-		apiConfig.CurrentContext = c.Flags.Context
+		apiConfig.CurrentContext = p.Params["context"]
 	}
 
 	// create a new clientset with the updated config
