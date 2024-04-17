@@ -1,4 +1,4 @@
-package main
+package labeler
 
 import (
 	"bufio"
@@ -54,7 +54,7 @@ func (p ParamsStruct) detectInput() error {
 		if yamlData != nil {
 			// log.Println("labeler.go: YAML data detected in stdin")
 			// Do something with the YAML data received - don't need to use history hack in this case - we got valid YAML input from template, --dry-run, or --debug
-			err := p.traverseHelmOutput(strings.NewReader(string(input)), os.Stdout)
+			err := p.traverseHelmOutput(strings.NewReader(string(input)))
 			if err != nil {
 				log.Println("labeler.go: error (traverseinput):", err)
 				return err
@@ -63,7 +63,7 @@ func (p ParamsStruct) detectInput() error {
 		} else {
 			// log.Println("labeler.go: no YAML data detected in stdin, will try to run again with YAML output")
 			// time to do it the hard way - many may not like this approach (history hack) - the other options above are more than sufficient for most people's use
-			return p.helmOrKubectl(os.Stdin, os.Stdout, buffer)
+			return p.helmOrKubectl(buffer)
 		}
 	} else {
 		// ...otherwise get the file
@@ -73,7 +73,7 @@ func (p ParamsStruct) detectInput() error {
 			return e
 		}
 		defer file.Close()
-		return p.helmOrKubectl(file, os.Stdout, buffer)
+		return p.helmOrKubectl(buffer)
 	}
 
 	if len(runResults.didNotLabel) > 0 {
@@ -85,7 +85,7 @@ func (p ParamsStruct) detectInput() error {
 	return nil
 }
 
-func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) error {
+func (p ParamsStruct) helmOrKubectl(input []string) error {
 	originalCommand, cmdFound, err := p.getOriginalCommandFromHistory()
 	if err != nil {
 		log.Println("labeler.go: error (get history):", err)
@@ -105,7 +105,7 @@ func (p ParamsStruct) helmOrKubectl(r io.Reader, w io.Writer, input []string) er
 			os.Exit(1)
 		}
 
-		err = p.traverseHelmOutput(strings.NewReader(string(output)), os.Stdout)
+		err = p.traverseHelmOutput(strings.NewReader(string(output)))
 		if err != nil {
 			log.Println("labeler.go: error (to traverseInput):", err)
 			return err

@@ -1,10 +1,12 @@
-package main
+package labeler
 
 import (
 	"fmt"
 	"log"
 	"os"
 	"os/user"
+	"path/filepath"
+	"plugin"
 	"reflect"
 	"strings"
 
@@ -16,6 +18,11 @@ import (
 )
 
 var version = "0.17.0"
+
+// Plugin interface
+type Plugin interface {
+	Run() []string
+}
 
 type ResourceStruct struct {
 	Group      string
@@ -101,6 +108,52 @@ func (p ParamsStruct) aliasRun(args []string) error {
 	p.resources = make(map[ResourceStruct][]byte)
 	p.pluginArgs = make(map[string][]string)
 	p.pluginPtrs = make(map[string]reflect.Value)
+
+	dir, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error getting current directory:", err)
+		os.Exit(1)
+	}
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		fmt.Println("Error reading directory:", err)
+		os.Exit(1)
+	}
+
+	// Load and run plugins
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if match, _ := filepath.Match("labeler-*", file.Name()); match {
+			log.Println("*****labeler.go: Found plugin:", file.Name())
+			// Load plugin
+			pi, err := plugin.Open(file.Name())
+			if err != nil {
+				fmt.Println("Error opening plugin:", err)
+				continue
+			}
+
+			// Lookup symbol
+			sym, err := pi.Lookup("PluginImpl")
+			if err != nil {
+				fmt.Println("Error looking up symbol:", err)
+				continue
+			}
+
+			// Assert and call plugin method
+			pluginImpl, ok := sym.(Plugin)
+			if !ok {
+				fmt.Println("Error: unexpected type from module symbol")
+				continue
+			}
+
+			pluginArgs := pluginImpl.Run()
+			log.Println("Plugin args:", pluginArgs)
+		}
+	}
 
 	p.getPluginNamesAndArgs()
 
@@ -249,7 +302,7 @@ func (p ParamsStruct) aliasRun(args []string) error {
 
 			// set the context and get the helm output into the resources map
 			p.ClientSet, p.RestConfig, p.DynamicClient = p.switchContext()
-			err = p.traverseHelmOutput(strings.NewReader(string(templateOutput)), os.Stdout)
+			err = p.traverseHelmOutput(strings.NewReader(string(templateOutput)))
 			if err != nil {
 				log.Println("labeler.go: error (to traverseInput):", err)
 				return err
@@ -290,10 +343,10 @@ func (p ParamsStruct) aliasRun(args []string) error {
 				fmt.Printf("labeler.go: [debug] resources: Key: %s, Value: %s\n", key, value)
 			}
 		}
-		if p.params["l"] != "" {
-			log.Printf("\nlabeler plugin: %q:\n\n", "PluginLabeler")
-			p.PluginLabeler(false)
-		}
+		// if p.params["l"] != "" {
+		// 	log.Printf("\nlabeler plugin: %q:\n\n", "PluginLabeler")
+		// 	p.PluginLabeler(false)
+		// }
 
 	}
 	return nil

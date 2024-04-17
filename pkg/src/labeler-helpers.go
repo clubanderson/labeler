@@ -1,8 +1,10 @@
-package main
+package labeler
 
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -14,10 +16,13 @@ import (
 	"regexp"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/disk"
@@ -206,7 +211,7 @@ func (p ParamsStruct) runHelmInTemplateMode(args []string) []byte {
 	return output
 }
 
-func (p ParamsStruct) traverseHelmOutput(r io.Reader, w io.Writer) error {
+func (p ParamsStruct) traverseHelmOutput(r io.Reader) error {
 	mapper, _ := p.createCachedDiscoveryClient(*p.RestConfig)
 
 	var linesOfOutput []string
@@ -273,6 +278,66 @@ func (p ParamsStruct) traverseHelmOutput(r io.Reader, w io.Writer) error {
 		// }
 
 	}
+	return nil
+}
+
+func (p ParamsStruct) setLabel(namespace, objectName string, gvr schema.GroupVersionResource) error {
+
+	if flags.label == "" && p.params["labelKey"] == "" {
+		if p.flags["l-debug"] {
+			log.Println("labeler.go: no label provided")
+		}
+		return nil
+	}
+	if flags.label != "" {
+		p.params["labelKey"], p.params["labelVal"] = strings.Split(flags.label, "=")[0], strings.Split(flags.label, "=")[1]
+	}
+
+	labels := map[string]string{
+		p.params["labelKey"]: p.params["labelVal"],
+	}
+
+	// serialize labels to JSON
+	patch, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"labels": labels,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	if p.flags["l-debug"] {
+		log.Printf("labeler.go: patching object %v/%v/%v %q in namespace %q with %v=%v %q %q %q %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.params["labelKey"], p.params["labelVal"], gvr.Resource, gvr.Version, gvr.Group, string(patch))
+	}
+	if namespace == "" {
+		_, err = p.DynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
+		if err != nil {
+			if p.flags["l-debug"] {
+				log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
+			}
+		}
+	} else {
+		_, err = p.DynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
+		if err != nil {
+			if p.flags["l-debug"] {
+				log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
+			}
+		}
+	}
+
+	if err != nil {
+		if namespace != "" {
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v -n %q\n", gvr.Resource, objectName, p.params["labelKey"], p.params["labelVal"], namespace)
+			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
+		} else {
+			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, objectName, p.params["labelKey"], p.params["labelVal"])
+			runResults.didNotLabel = append(runResults.didNotLabel, labelCmd)
+		}
+		return err
+	}
+
+	log.Printf("  🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.params["labelKey"], p.params["labelVal"])
 	return nil
 }
 

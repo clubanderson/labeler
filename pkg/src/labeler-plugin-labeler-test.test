@@ -12,6 +12,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+type PluginImpl struct{}
+
+func (pi PluginImpl) Run() []string {
+	log.Println("Plugin is running")
+	return []string{"label,string,label key and value to be applied to objects (usage: --label=app.kubernetes.io/part-of=sample)"}
+}
+
 func (p ParamsStruct) PluginLabeler(reflect bool) []string {
 	// function must be exportable (capitalize first letter of function name) to be discovered by labeler
 	if reflect {
