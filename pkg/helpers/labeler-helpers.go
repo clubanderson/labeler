@@ -25,6 +25,8 @@ import (
 	pluginOCMcreator "github.com/clubanderson/labeler/pkg/plugin-ocm-creator"
 	pluginRemoteDeploy "github.com/clubanderson/labeler/pkg/plugin-remote-deploy"
 
+	// add other compile-time plugins here
+
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -50,7 +52,7 @@ var pluginFunctions = []interface{}{
 	pluginBPcreator.PluginCreateBP,
 	pluginOCMcreator.PluginCreateMW,
 	pluginRemoteDeploy.PluginRemoteDeployTo,
-	// Add other plugin functions here as needed
+	// add other plugin functions here as needed
 }
 
 func AliasRun(args []string, p c.ParamsStruct) error {
@@ -81,21 +83,21 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 
 		if match, _ := filepath.Match("labeler-*", file.Name()); match {
 			log.Println("*****labeler.go: Found plugin:", file.Name())
-			// Load plugin
+			// load plugin
 			pi, err := plugin.Open(file.Name())
 			if err != nil {
 				fmt.Println("Error opening plugin:", err)
 				continue
 			}
 
-			// Lookup symbol
+			// lookup symbol
 			sym, err := pi.Lookup("PluginImpl")
 			if err != nil {
 				fmt.Println("Error looking up symbol:", err)
 				continue
 			}
 
-			// Assert and call plugin method
+			// assert and call plugin method
 			pluginImpl, ok := sym.(c.Plugin)
 			if !ok {
 				fmt.Println("Error: unexpected type from module symbol")
@@ -191,7 +193,6 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 		}
 		// remove the following args for both helm and kubectl because they do not recognize them
 		for i := 0; i < len(args); i++ {
-			// log.Printf("args: %v", args[i])
 			// remove all labeler flags
 			if strings.HasPrefix(args[i], "--l-") {
 				args = append(args[:i], args[i+1:]...)
@@ -245,7 +246,6 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 			// run the original helm command without the extra labeler flags
 			_, err := p.RunCmd("helm", args[1:], false)
 			if err != nil {
-				// log.Println(err)
 				os.Exit(1)
 			}
 
@@ -295,11 +295,6 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 				fmt.Printf("labeler.go: [debug] resources: Key: %s, Value: %s\n", key, value)
 			}
 		}
-		// if p.params["l"] != "" {
-		// 	log.Printf("\nlabeler plugin: %q:\n\n", "PluginLabeler")
-		// 	p.PluginLabeler(false)
-		// }
-
 	}
 	return nil
 }
@@ -733,25 +728,12 @@ func createCachedDiscoveryClient(restConfigCoreOrWds rest.Config, p c.ParamsStru
 	return mapper, nil
 }
 
-// func (p ParamsStruct) useContext(contextName string) {
-// 	setContext := []string{"config", "use-context", contextName}
-// 	_, err := p.RunCmd("kubectl", setContext, false)
-// 	if err != nil {
-// 		// log.Printf("   🔴 error setting kubeconfig's current context: %v\n", err)
-// 	} else {
-// 		log.Printf("   📍 kubeconfig's current context set to %v\n", contextName)
-// 	}
-// }
-
 func getGVRFromGVK(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
 	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
 		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapping: %v", err)
 	}
-
 	gvr := mapping.Resource
-
-	// Check if the resource is found
 	if gvr.Resource == "" {
 		return schema.GroupVersionResource{}, fmt.Errorf("resource name not found for kind %s/%s %s", gvk.Group, gvk.Version, gvk.Kind)
 	}
