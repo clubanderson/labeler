@@ -1,4 +1,4 @@
-module clubanderson.com/labeler
+module github.com/clubanderson/labeler
 
 go 1.22.1
 
