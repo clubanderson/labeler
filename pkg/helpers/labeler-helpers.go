@@ -19,6 +19,7 @@ import (
 
 	pluginBPcreator "github.com/clubanderson/labeler/pkg/plugin-bp-creator"
 	pluginHelp "github.com/clubanderson/labeler/pkg/plugin-help"
+	pluginLabeler "github.com/clubanderson/labeler/pkg/plugin-labeler"
 	pluginOCMcreator "github.com/clubanderson/labeler/pkg/plugin-ocm-creator"
 	pluginRemoteDeploy "github.com/clubanderson/labeler/pkg/plugin-remote-deploy"
 
@@ -48,6 +49,7 @@ var pluginFunctions = []interface{}{
 	pluginBPcreator.PluginCreateBP,
 	pluginOCMcreator.PluginCreateMW,
 	pluginRemoteDeploy.PluginRemoteDeployTo,
+	pluginLabeler.PluginLabeler,
 	// add other plugin functions here as needed
 }
 
