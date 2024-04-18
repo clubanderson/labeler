@@ -109,17 +109,12 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 			strings.HasPrefix(arg, "expose") ||
 			strings.HasPrefix(arg, "autoscale") ||
 			strings.HasPrefix(arg, "attach") ||
-			strings.HasPrefix(arg, "exec") ||
 			strings.HasPrefix(arg, "wait") ||
 			strings.HasPrefix(arg, "cp") ||
 			strings.HasPrefix(arg, "run") ||
 			strings.HasPrefix(arg, "label") ||
 			strings.HasPrefix(arg, "annotate") ||
-			strings.HasPrefix(arg, "patch") ||
-			strings.HasPrefix(arg, "delete") ||
-			strings.HasPrefix(arg, "create") ||
-			strings.HasPrefix(arg, "replace") ||
-			strings.HasPrefix(arg, "edit") {
+			strings.HasPrefix(arg, "patch") {
 			p.Flags[arg] = true
 		}
 	}
@@ -239,14 +234,18 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 
 		fnArgs := []reflect.Value{reflect.ValueOf(p), reflect.ValueOf(false)}
 
+		runOnce := make(map[string]bool)
 		for key := range combinedFlagsAndParams {
 			for pkey, value := range p.PluginArgs {
 				for _, vCSV := range value {
 					v := strings.Split(vCSV, ",")
 					if key == v[0] {
 						if p.PluginPtrs[pkey].IsValid() {
-							log.Printf("\nlabeler plugin: %q:\n\n", pkey)
-							p.PluginPtrs[pkey].Call(fnArgs)
+							if !runOnce[pkey] {
+								log.Printf("\nlabeler plugin: %q:\n\n", pkey)
+								p.PluginPtrs[pkey].Call(fnArgs)
+								runOnce[pkey] = true
+							}
 						}
 					}
 				}
@@ -254,7 +253,7 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 		}
 		if p.Flags["l-debug"] {
 			for key, value := range p.Resources {
-				fmt.Printf("labeler.go: [debug] resources: Key: %s, Value: %s\n", key, value)
+				fmt.Printf("labeler.go: [debug] resources: Key: %s, Value: \n%s\n", key, value)
 			}
 		}
 	}
@@ -337,7 +336,9 @@ func traverseKubectlOutput(input []string, p c.ParamsStruct) {
 			Namespace:  namespace,
 			ObjectName: objectName,
 		}
-		addObjectsToResourcesAfterKubectlApply(resource, p)
+		if p.Flags["apply"] || p.Flags["create"] || p.Flags["replace"] {
+			addObjectsToResourcesAfterKubectlApply(resource, p)
+		}
 	}
 }
 

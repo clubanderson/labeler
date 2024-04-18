@@ -164,6 +164,41 @@ else
 fi  
 ((test_number++))
 
+
+echo
+echo "---------------------------------------------"
+echo "--- kustomize with KubeStellar bindingpolicy creation (should fail unless you have WDS1 for KubeStellar on context cluster) ---"
+echo "k apply -k ../examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --l-bp-name=newbp --l-bp-wds=wds1"
+if ! k apply -k ../examples/kustomize -l app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --l-bp-name=newbp --l-bp-wds=wds1;then
+    print_error "test $test_number: ERROR"
+else
+    print_success "test $test_number: SUCCESS"
+fi  
+((test_number++))
+
+echo
+echo "---------------------------------------------"
+echo "--- kustomize with OCM manifestwork output ---"
+echo "k apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --l-mw-name=new"
+if ! k apply -f ../examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --l-mw-name=new;then
+    print_error "test $test_number: ERROR"
+else
+    print_success "test $test_number: SUCCESS"
+fi  
+((test_number++))
+
+echo
+echo "---------------------------------------------"
+echo "--- kustomize with OCM manifestwork creation (should fail unless you have OCM installed on context cluster) ---"
+echo "k apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --l-mw-name=new --l-mw-create"
+if ! k apply -f ../examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=default --overwrite --l-mw-name=new --l-mw-create;then
+    print_error "test $test_number: ERROR"
+else
+    print_success "test $test_number: SUCCESS"
+fi  
+((test_number++))
+
+
 echo
 echo "---------------------------------------------"
 echo "--- kustomize with debug output ---"
@@ -188,9 +223,9 @@ fi
 
 echo
 echo "---------------------------------------------"
-echo "--- kubectl log - works! ---"
-echo "k logs deployment.apps/coredns -n kube-system"
-if ! k logs deployment.apps/coredns -n kube-system;then
+echo "--- kubectl log ---"
+echo "k logs deployment.apps/my-app-deployment -n default --context=kind-kind"
+if ! k logs deployment.apps/my-app-deployment -n default --context=kind-kind;then
     print_error "test $test_number: ERROR"
 else
     print_success "test $test_number: SUCCESS"

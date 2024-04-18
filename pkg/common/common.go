@@ -16,7 +16,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -25,7 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var Version = "0.18.1"
+var Version = "0.18.2"
 
 // Plugin interface
 type Plugin interface {
@@ -165,22 +164,7 @@ func expandTilde(args []string) []string {
 	return args
 }
 
-func (p ParamsStruct) CreateObjForPlugin(gvk schema.GroupVersionKind, yamlData []byte, objName, objResource, namespace string) {
-	// Unmarshal YAML data into a map
-	var objMap map[string]interface{}
-	err := yaml.Unmarshal([]byte(yamlData), &objMap)
-	if err != nil {
-		fmt.Println("Error unmarshaling YAML:", err)
-		return
-	}
-
-	// Marshal the map into JSON
-	objectJSON, err := json.Marshal(objMap)
-	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
-		return
-	}
-
+func (p ParamsStruct) CreateObjForPlugin(gvk schema.GroupVersionKind, yamlData []byte, objName, objResource, namespace string, objectJSON []byte) {
 	gvr := schema.GroupVersionResource{
 		Group:    gvk.Group,
 		Version:  gvk.Version,
@@ -193,44 +177,54 @@ func (p ParamsStruct) CreateObjForPlugin(gvk schema.GroupVersionKind, yamlData [
 		Resource: "namespaces",
 	}
 
-	if p.Flags["debug"] {
+	if p.Flags["l-debug"] {
 		log.Printf("  ℹ️  object info %v/%v/%v %v\n", nsgvr.Group, nsgvr.Version, nsgvr.Resource, namespace)
 	}
-	_, err = p.GetObject(p.DynamicClient, "", nsgvr, namespace)
+
+	_, err := p.createObject(p.DynamicClient, namespace, gvr, objectJSON)
 	if err != nil {
-		log.Printf("  🔴 failed to create %v %q, namespace %q does not exist. Is KubeStellar installed?\n", objResource, objName, namespace)
-	} else {
-		_, err = p.createObject(p.DynamicClient, namespace, gvr, objectJSON)
-		if err != nil {
-			log.Printf("  🔴 failed to create %v object %q in namespace %v. Is KubeStellar installed?\n", objResource, objName, namespace)
-		}
+		log.Printf("  🔴 failed to create %v object %q in namespace %q: %v. Check if %q CRD is missing from cluster.\n", objResource, objName, namespace, err, objResource)
 	}
 }
 
 func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, namespace string, gvr schema.GroupVersionResource, objectJSON []byte) (string, error) {
-	objToCreate := &unstructured.Unstructured{}
-
-	// printUnstructured(objToCreate)
-
-	// unmarshal the JSON data into the Unstructured object
-	err := objToCreate.UnmarshalJSON(objectJSON)
+	var objMap map[string]interface{}
+	err := json.Unmarshal(objectJSON, &objMap)
 	if err != nil {
-		log.Printf("%v\n", err)
-		return namespace, nil
+		fmt.Println("Error unmarshaling JSON:", err)
+		return namespace, err
 	}
 
-	_, err = p.GetObject(ocDynamicClientCoreOrWds, namespace, gvr, objToCreate.GetName())
+	// Create an unstructured.Unstructured object from the map
+	objToCreate := &unstructured.Unstructured{Object: objMap}
+
+	// Now objToCreate is an unstructured.Unstructured object representing the JSON data
+	// log.Printf("objToCreate: %v\n", objToCreate)
+	metadata, ok, _ := unstructured.NestedMap(objToCreate.Object, "Metadata")
+	if !ok {
+		fmt.Println("Metadata section not found")
+		return namespace, err
+	}
+	name, ok, _ := unstructured.NestedString(metadata, "Name")
+	if !ok {
+		fmt.Println("Name not found")
+		return namespace, err
+	}
+
+	// log.Printf("name: %v\n", name)
+
+	_, err = p.GetObject(ocDynamicClientCoreOrWds, namespace, gvr, name)
 	if err == nil {
 		// object still exists, can't create
-		if p.Flags["debug"] {
-			log.Printf("          ℹ️  object exists %v/%v/%v %v\n", gvr.Group, gvr.Version, gvr.Resource, objToCreate.GetName())
+		if p.Flags["l-debug"] {
+			log.Printf("          ℹ️  object exists %v/%v/%v %v\n", gvr.Group, gvr.Version, gvr.Resource, name)
 		}
 		return namespace, err
 	}
 
 	// log.Printf("          ℹ️  object info %v/%v/%v %v\n", gvr.Group, gvr.Version, gvr.Resource, objToCreate.GetName())
 	if errors.IsNotFound(err) {
-		retryCount := 10
+		retryCount := 3
 		for attempt := 1; attempt <= retryCount; attempt++ {
 			if namespace == "" {
 				_, err = ocDynamicClientCoreOrWds.Resource(gvr).Create(context.TODO(), objToCreate, metav1.CreateOptions{})
@@ -241,14 +235,14 @@ func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, n
 			if err == nil {
 				break
 			}
-			if p.Flags["debug"] {
+			if p.Flags["l-debug"] {
 				log.Printf("          ℹ️  object %s is being created (if error, namespace might be missing from resource definition). Retrying in 5 seconds: %v/%v/%v: %v\n", objToCreate.GetName(), gvr.Group, gvr.Version, gvr.Resource, err)
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		if p.Flags["debug"] {
+		if p.Flags["l-debug"] {
 			if err != nil {
 				if namespace == "" {
 					log.Printf("       🟡 error creating object %v/%v/%v %v: %v\n", gvr.Group, gvr.Version, gvr.Resource, objToCreate.GetName(), err)
@@ -304,16 +298,19 @@ func (p ParamsStruct) GetObject(ocDynamicClientCoreOrWds dynamic.Interface, name
 		return nil, errMarshal
 	}
 
-	if p.Flags["debug"] {
-		if err != nil {
-			// log.Printf("          > object not found %v/%v/%v %v in %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
-			return nil, err
-
-		} else {
-			// log.Printf("          > found object %v/%v/%v %v in %q\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace)
-			return objectJSON, nil
+	if err != nil {
+		if p.Flags["l-debug"] {
+			log.Printf("          > object not found %v/%v/%v %q in %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
 		}
+		return nil, err
+
+	} else {
+		if p.Flags["l-debug"] {
+			log.Printf("          > found object %v/%v/%v %q in %q\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace)
+		}
+		return objectJSON, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package pluginBPcreator
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -113,8 +114,13 @@ func PluginCreateBP(p c.ParamsStruct, reflect bool) []string {
 	}
 
 	if p.Params["l-bp-wds"] != "" {
-		log.Printf("  🚀 Attempting to create %v object %q in WDS namespace %q", k, n, p.Params[nsArg])
-		p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["namespaceArg"])
+		log.Printf("  🚀 Attempting to create %v object %q in WDS %q", k, n, p.Params["l-bp-wds"])
+		objectJSON, err := json.Marshal(bindingPolicy)
+		if err != nil {
+			fmt.Println("Error marshaling JSON:", err)
+			return []string{}
+		}
+		p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["l-bp-wds"], objectJSON)
 	} else {
 		fmt.Printf("%v", string(yamlData))
 	}

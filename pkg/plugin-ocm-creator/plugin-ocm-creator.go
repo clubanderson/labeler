@@ -1,6 +1,7 @@
 package pluginOCMcreator
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 
@@ -17,30 +18,31 @@ type ManifestWork struct {
 	Spec       mwSpec     `yaml:"spec"`
 }
 
-type mwSpec struct {
-	Workload Workload `yaml:"workload"`
-}
-
 type mwMetadata struct {
 	Name string `yaml:"name"`
+}
+
+type mwSpec struct {
+	Workload Workload `yaml:"workload"`
 }
 
 type Workload struct {
 	Manifests []map[string]interface{} `yaml:"manifests"`
 }
 
-type Manifest struct {
-	YAML string `yaml:"-"`
-}
+// Remove the unused type declaration
+// type manifest struct {
+// 	YAML string `yaml:"-"`
+// }
 
 func PluginCreateMW(p c.ParamsStruct, reflect bool) []string {
 	// function must be exportable (capitalize first letter of function name) to be discovered by labeler
 	if reflect {
 		return []string{"l-mw-name,string,name for the manifestwork object", "l-mw-create,flag,create/apply the manifestwork object"}
 	}
-	type PluginFunction struct {
-		pluginCreateMW string `triggerKey:"l-mw"`
-	}
+	// type PluginFunction struct {
+	// 	pluginCreateMW string `triggerKey:"l-mw"`
+	// }
 	n := "change-me"
 	nArg := "l-mw-name"
 	g := "work.open-cluster-management.io"
@@ -70,11 +72,10 @@ func PluginCreateMW(p c.ParamsStruct, reflect bool) []string {
 			},
 		},
 	}
-	// need a loop to fill in the manifests with the objects from debug run of kubectl or helm
 
-	for _, yamlData := range p.Resources {
+	for _, workloadYamlData := range p.Resources {
 		var obj map[string]interface{}
-		err := yaml.Unmarshal(yamlData, &obj)
+		err := yaml.Unmarshal(workloadYamlData, &obj)
 		if err != nil {
 			log.Printf("Error unmarshaling YAML: %v", err)
 			continue
@@ -87,10 +88,18 @@ func PluginCreateMW(p c.ParamsStruct, reflect bool) []string {
 		fmt.Println("Error marshaling YAML:", err)
 		return []string{}
 	}
+	// log.Printf("yamlData: \n%v", string(yamlData))
 
 	if p.Flags["l-mw-create"] {
 		log.Printf("  🚀 Attempting to create %v object %q in namespace %q", k, n, p.Params["namespaceArg"])
-		p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["namespaceArg"])
+		// log.Printf("%v %v %v %v %v %v", gvk.Group, gvk.Version, gvk.Kind, n, r, p.Params["namespaceArg"])
+		objectJSON, err := json.Marshal(manifestWork)
+		if err != nil {
+			fmt.Println("Error marshaling JSON:", err)
+			return []string{}
+		}
+		// log.Printf("objectJSON: \n%v", string(objectJSON))
+		p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["namespaceArg"], objectJSON)
 	} else {
 		fmt.Printf("%v", string(yamlData))
 	}
