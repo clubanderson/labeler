@@ -63,13 +63,17 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 	p.PluginArgs = make(map[string][]string)
 	p.PluginPtrs = make(map[string]reflect.Value)
 
-	dir, err := os.Getwd()
+	exePath, err := os.Executable()
 	if err != nil {
-		fmt.Println("Error getting current directory:", err)
+		fmt.Println("Error getting executable path:", err)
 		os.Exit(1)
 	}
 
-	files, err := os.ReadDir(dir)
+	// Get the directory containing the executable
+	exeDir := filepath.Dir(exePath)
+
+	// Read the files in the directory
+	files, err := os.ReadDir(exeDir)
 	if err != nil {
 		fmt.Println("Error reading directory:", err)
 		os.Exit(1)
@@ -84,7 +88,7 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 		if match, _ := filepath.Match("labeler-*", file.Name()); match {
 			log.Println("*****labeler.go: Found plugin:", file.Name())
 			// load plugin
-			pi, err := plugin.Open(file.Name())
+			pi, err := plugin.Open(filepath.Join(exeDir, file.Name()))
 			if err != nil {
 				fmt.Println("Error opening plugin:", err)
 				continue
