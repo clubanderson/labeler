@@ -17,6 +17,7 @@ import (
 	c "github.com/clubanderson/labeler/pkg/common"
 	k "github.com/clubanderson/labeler/pkg/kube-helpers"
 
+	pluginAnnotator "github.com/clubanderson/labeler/pkg/plugin-annotator"
 	pluginBPcreator "github.com/clubanderson/labeler/pkg/plugin-bp-creator"
 	pluginHelp "github.com/clubanderson/labeler/pkg/plugin-help"
 	pluginLabeler "github.com/clubanderson/labeler/pkg/plugin-labeler"
@@ -50,6 +51,7 @@ var pluginFunctions = []interface{}{
 	pluginOCMcreator.PluginCreateMW,
 	pluginRemoteDeploy.PluginRemoteDeployTo,
 	pluginLabeler.PluginLabeler,
+	pluginAnnotator.PluginAnnotator,
 	// add other plugin functions here as needed
 }
 
@@ -158,6 +160,14 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 					i--
 				}
 			}
+			if strings.HasPrefix(args[i], "--annotation") {
+				if strings.Contains(args[i], "=") {
+					p.Params["annotationKey"] = strings.Split(args[i], "=")[1]
+					p.Params["annotationVal"] = strings.Split(args[i], "=")[2]
+					// args = append(args[:i], args[i+1:]...)
+					// i--
+				}
+			}
 			if strings.HasPrefix(args[i], "-l") {
 				if len(args) > i+1 && !strings.HasPrefix(args[i+1], "-") {
 					p.Params["labelKey"] = strings.Split(args[i+1], "=")[0]
@@ -201,7 +211,7 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 				os.Exit(1)
 			}
 
-			// now run helm as template and label the output
+			// now run helm as template and collect output
 			templateOutput := runHelmInTemplateMode(args, p)
 
 			// set the context and get the helm output into the resources map
@@ -260,26 +270,25 @@ func traverseKubectlOutput(input []string, p c.ParamsStruct) {
 
 	namespace := p.Params["namespaceArg"]
 
-	if c.Flags.Label == "" && p.Params["labelKey"] == "" {
-		if p.Flags["l-debug"] {
-			log.Println("labeler.go: no label provided")
-		}
-		return
-	}
-	if c.Flags.Label != "" {
-		p.Params["labelKey"], p.Params["labelVal"] = strings.Split(c.Flags.Label, "=")[0], strings.Split(c.Flags.Label, "=")[1]
-	}
+	// if c.Flags.Label == "" && p.Params["labelKey"] == "" {
+	// 	if p.Flags["l-debug"] {
+	// 		log.Println("labeler.go: no label provided")
+	// 	}
+	// 	return
+	// }
+	// if c.Flags.Label != "" {
+	// 	p.Params["labelKey"], p.Params["labelVal"] = strings.Split(c.Flags.Label, "=")[0], strings.Split(c.Flags.Label, "=")[1]
+	// }
 
 	if len(matches) == 0 {
 		if p.Flags["l-debug"] {
-			log.Println("labeler.go: no resources found to label")
+			log.Println("labeler.go: no resources found")
 		}
 		return
 	}
 
 	// iterate over matches and extract group version kind and object name
 	for _, match := range matches {
-		// var labelCmd []string
 		// log.Printf("labeler.go: match: %v\n", match)
 		// the first match group contains the group kind and object name
 		groupKindObjectName := match[1]
@@ -293,24 +302,6 @@ func traverseKubectlOutput(input []string, p c.ParamsStruct) {
 			g = strings.Join(gvkParts[1:], ".")
 		}
 		objectName := parts[1]
-		// // log.Printf("labeler.go: g: %s, k: %s, ObjectName: %s", g, k, objectName)
-		// labelCmd = []string{"-n", namespace, "label", k + "/" + objectName, p.Params["labelKey"] + "=" + p.Params["labelVal"]}
-		// if Flags.Context != "" {
-		// 	labelCmd = append(labelCmd, "--context="+Flags.Context)
-		// }
-		// if p.Flags["overwrite"] || Flags.Overwrite {
-		// 	labelCmd = append(labelCmd, "--overwrite")
-		// }
-		// if p.Params["context"] != "" {
-		// 	labelCmd = append(labelCmd, "--context="+p.Params["context"])
-		// }
-		// if p.Params["kube-context"] != "" {
-		// 	labelCmd = append(labelCmd, "--context="+p.Params["kube-context"])
-		// }
-		// if p.Params["kubeconfig"] != "" {
-		// 	labelCmd = append(labelCmd, "--kubeconfig="+p.Params["kubeconfig"])
-		// }
-
 		client, _ := kubernetes.NewForConfig(p.RestConfig)
 		res, _ := discovery.ServerPreferredResources(client.Discovery())
 		for _, resList := range res {
@@ -446,9 +437,6 @@ func traverseHelmOutput(r io.Reader, p c.ParamsStruct) error {
 		allLines = allLines[i:]
 	}
 
-	// Convert the sliced string back to a string slice
-	// linesOfOutput = strings.Split(allLines, "\n")
-
 	decoder := yaml.NewDecoder(strings.NewReader(allLines))
 	for {
 		var obj map[string]interface{}
@@ -502,22 +490,17 @@ func traverseHelmOutput(r io.Reader, p c.ParamsStruct) error {
 }
 
 func getPluginNamesAndArgs(p c.ParamsStruct) {
+	//
+	// COMPILE-TIME PLUGIN DISCOVERY SECTION
+	//
 	for _, pluginFunc := range pluginFunctions {
-		// t := reflect.TypeOf(pluginFunc)
 		ptr := reflect.ValueOf(pluginFunc).Pointer()
 		methodName := runtime.FuncForPC(ptr).Name()
 		parts := strings.Split(methodName, ".")
 		methodName = parts[len(parts)-1]
-		// log.Printf("labeler.go: funcName: %v %v\n", methodName, ptr)
-		// Iterate through the methods of the struct
-		// for i := 0; i < t.NumMethod(); i++ {
-		// 	// Get the method
-		// 	method := t.Method(i)
-		// 	log.Printf("labeler.go: method.Name: %v\n", method.Name)
 		fnValue := reflect.ValueOf(pluginFunc)
 
 		if strings.HasPrefix(methodName, "Plugin") {
-			// log.Println("labeler.go: method.Name:", method.Name)
 			args := []reflect.Value{reflect.ValueOf(p), reflect.ValueOf(true)}
 			result := fnValue.Call(args)
 			for _, rv := range result {
@@ -527,8 +510,10 @@ func getPluginNamesAndArgs(p c.ParamsStruct) {
 			}
 		}
 	}
-	// }
 
+	//
+	// RUNTIME PLUGIN DISCOVERY SECTION
+	//
 	exePath, err := os.Executable()
 	if err != nil {
 		fmt.Println("Error getting executable path:", err)

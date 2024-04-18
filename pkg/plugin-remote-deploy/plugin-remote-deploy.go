@@ -12,8 +12,8 @@ func PluginRemoteDeployTo(p c.ParamsStruct, reflect bool) []string {
 	if reflect {
 		return []string{"l-remote-contexts,string,comma-separated list of remote contexts to deploy to (usage: --l-remote-contexts=cluster1,cluster2,cluster3)"}
 	}
-	supportedArgs := []string{"l-remote-contexts"}
-	_ = supportedArgs
+	// supportedArgs := []string{"l-remote-contexts"}
+	// _ = supportedArgs
 	if p.Params["l-remote-contexts"] != "" {
 		remoteContexts := strings.Split(p.Params["l-remote-contexts"], ",")
 

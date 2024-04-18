@@ -56,7 +56,8 @@ type ParamsStruct struct {
 }
 
 type ResultsStruct struct {
-	DidNotLabel []string
+	DidNotLabel    []string
+	DidNotAnnotate []string
 }
 
 var RunResults ResultsStruct
@@ -66,6 +67,7 @@ var Flags struct {
 	Debug      bool
 	Verbose    bool
 	Label      string
+	Annotation string
 	Kubeconfig string
 	Context    string
 	Overwrite  bool
@@ -78,6 +80,8 @@ var FlagsName = struct {
 	VerboseShort    string
 	Debug           string
 	DebugShort      string
+	Annotation      string
+	AnnotationShort string
 	Label           string
 	LabelShort      string
 	Kubeconfig      string
@@ -93,6 +97,8 @@ var FlagsName = struct {
 	VerboseShort:    "v",
 	Debug:           "debug",
 	DebugShort:      "d",
+	Annotation:      "annotation",
+	AnnotationShort: "a",
 	Label:           "label",
 	LabelShort:      "l",
 	Kubeconfig:      "kubeconfig",

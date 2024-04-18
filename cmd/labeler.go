@@ -75,6 +75,7 @@ func main() {
 		rootCmd.Flags().BoolVar(&versionFlag, "version", false, "print the version")
 		// rootCmd.Flags().StringVarP(&flags.filepath, flagsName.file, flagsName.fileShort, "", "path to the file")
 		rootCmd.PersistentFlags().StringVarP(&c.Flags.Label, c.FlagsName.Label, c.FlagsName.LabelShort, "", "label to apply to all resources e.g. -l app.kubernetes.io/part-of=sample-value")
+		rootCmd.PersistentFlags().StringVarP(&c.Flags.Annotation, c.FlagsName.Annotation, c.FlagsName.AnnotationShort, "", "annotation to apply to all resources e.g. --annotation=creator='John Doe'")
 		rootCmd.PersistentFlags().StringVarP(&c.Flags.Kubeconfig, c.FlagsName.Kubeconfig, c.FlagsName.KubeconfigShort, "", "kubeconfig to use")
 		rootCmd.PersistentFlags().StringVarP(&c.Flags.Context, c.FlagsName.Context, c.FlagsName.ContextShort, "", "context to use")
 		rootCmd.PersistentFlags().BoolVarP(&c.Flags.Verbose, c.FlagsName.Verbose, c.FlagsName.VerboseShort, false, "log verbose output")
