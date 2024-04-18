@@ -3,8 +3,6 @@ package helpers
 import (
 	"bufio"
 	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -16,9 +14,8 @@ import (
 	"runtime"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	c "github.com/clubanderson/labeler/pkg/common"
+	k "github.com/clubanderson/labeler/pkg/kube-helpers"
 
 	pluginBPcreator "github.com/clubanderson/labeler/pkg/plugin-bp-creator"
 	pluginHelp "github.com/clubanderson/labeler/pkg/plugin-help"
@@ -31,7 +28,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/disk"
@@ -62,56 +58,6 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 	p.Resources = make(map[c.ResourceStruct][]byte)
 	p.PluginArgs = make(map[string][]string)
 	p.PluginPtrs = make(map[string]reflect.Value)
-
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Println("Error getting executable path:", err)
-		os.Exit(1)
-	}
-
-	// Get the directory containing the executable
-	exeDir := filepath.Dir(exePath)
-
-	// Read the files in the directory
-	files, err := os.ReadDir(exeDir)
-	if err != nil {
-		fmt.Println("Error reading directory:", err)
-		os.Exit(1)
-	}
-
-	// Load and run plugins
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		if match, _ := filepath.Match("labeler-*", file.Name()); match {
-			log.Println("*****labeler.go: Found plugin:", file.Name())
-			// load plugin
-			pi, err := plugin.Open(filepath.Join(exeDir, file.Name()))
-			if err != nil {
-				fmt.Println("Error opening plugin:", err)
-				continue
-			}
-
-			// lookup symbol
-			sym, err := pi.Lookup("PluginImpl")
-			if err != nil {
-				fmt.Println("Error looking up symbol:", err)
-				continue
-			}
-
-			// assert and call plugin method
-			pluginImpl, ok := sym.(c.Plugin)
-			if !ok {
-				fmt.Println("Error: unexpected type from module symbol")
-				continue
-			}
-
-			pluginArgs := pluginImpl.Run()
-			log.Println("Plugin args:", pluginArgs)
-		}
-	}
 
 	getPluginNamesAndArgs(p)
 
@@ -188,7 +134,7 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 		log.Println()
 	}
 
-	addNamespaceToResources(p)
+	k.AddNamespaceToResources(p)
 
 	if args[0] == "k" || args[0] == "kubectl" || args[0] == "helm" {
 
@@ -580,6 +526,72 @@ func getPluginNamesAndArgs(p c.ParamsStruct) {
 		}
 	}
 	// }
+
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error getting executable path:", err)
+		os.Exit(1)
+	}
+
+	// Get the directory containing the executable
+	exeDir := filepath.Dir(exePath)
+
+	// Read the files in the directory
+	files, err := os.ReadDir(exeDir)
+	if err != nil {
+		fmt.Println("Error reading directory:", err)
+		os.Exit(1)
+	}
+
+	// Load and run plugins
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if match, _ := filepath.Match("labeler-*", file.Name()); match {
+			log.Println("*****labeler.go: Found plugin:", file.Name())
+			// load plugin
+			pi, err := plugin.Open(filepath.Join(exeDir, file.Name()))
+			if err != nil {
+				fmt.Println("Error opening plugin:", err)
+				continue
+			}
+
+			// lookup symbol
+			sym, err := pi.Lookup("PluginRun")
+			if err != nil {
+				fmt.Println("Error looking up symbol:", err)
+				continue
+			}
+
+			// assert and call plugin method
+			pluginImpl, ok := sym.(func() []string)
+			if !ok {
+				fmt.Println("Error: unexpected type from module symbol")
+				continue
+			}
+			pluginFNnames := pluginImpl()
+			log.Println("Plugin function names:", pluginFNnames)
+
+			for _, methodName := range pluginFNnames {
+				sym, err = pi.Lookup(methodName)
+				if err != nil {
+					fmt.Println("Error looking up symbol:", err)
+					continue
+				}
+				pluginReflect, ok := sym.(func(c.ParamsStruct, bool) []string)
+				if !ok {
+					fmt.Println("Error: unexpected type from module symbol")
+					continue
+				}
+				pluginArgs := pluginReflect(p, true)
+				p.PluginArgs[methodName] = pluginArgs
+				p.PluginPtrs[methodName] = reflect.ValueOf(pluginReflect)
+				log.Println("Plugin args:", pluginFNnames)
+			}
+		}
+	}
 }
 
 func getFile() (*os.File, error) {
@@ -693,81 +705,4 @@ func decodeYAML(yamlBytes []byte) (*unstructured.Unstructured, error) {
 		return nil, err
 	}
 	return obj, nil
-}
-
-func SetLabel(namespace, objectName string, gvr schema.GroupVersionResource, p c.ParamsStruct) error {
-
-	if c.Flags.Label == "" && p.Params["labelKey"] == "" {
-		if p.Flags["l-debug"] {
-			log.Println("labeler.go: no label provided")
-		}
-		return nil
-	}
-	if c.Flags.Label != "" {
-		p.Params["labelKey"], p.Params["labelVal"] = strings.Split(c.Flags.Label, "=")[0], strings.Split(c.Flags.Label, "=")[1]
-	}
-
-	labels := map[string]string{
-		p.Params["labelKey"]: p.Params["labelVal"],
-	}
-
-	// serialize labels to JSON
-	patch, err := json.Marshal(map[string]interface{}{
-		"metadata": map[string]interface{}{
-			"labels": labels,
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	if p.Flags["l-debug"] {
-		log.Printf("labeler.go: patching object %v/%v/%v %q in namespace %q with %v=%v %q %q %q %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.Params["labelKey"], p.Params["labelVal"], gvr.Resource, gvr.Version, gvr.Group, string(patch))
-	}
-	if namespace == "" {
-		_, err = p.DynamicClient.Resource(gvr).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
-		if err != nil {
-			if p.Flags["l-debug"] {
-				log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
-			}
-		}
-	} else {
-		_, err = p.DynamicClient.Resource(gvr).Namespace(namespace).Patch(context.TODO(), objectName, types.MergePatchType, patch, metav1.PatchOptions{})
-		if err != nil {
-			if p.Flags["l-debug"] {
-				log.Printf("labeler.go: error patching object %v/%v/%v %q in namespace %q: %v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, err)
-			}
-		}
-	}
-
-	if err != nil {
-		if namespace != "" {
-			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v -n %q\n", gvr.Resource, objectName, p.Params["labelKey"], p.Params["labelVal"], namespace)
-			c.RunResults.DidNotLabel = append(c.RunResults.DidNotLabel, labelCmd)
-		} else {
-			labelCmd := fmt.Sprintf("kubectl label %v %v %v=%v\n", gvr.Resource, objectName, p.Params["labelKey"], p.Params["labelVal"])
-			c.RunResults.DidNotLabel = append(c.RunResults.DidNotLabel, labelCmd)
-		}
-		return err
-	}
-
-	log.Printf("  🏷️ labeled object %v/%v/%v %q in namespace %q with %v=%v\n", gvr.Group, gvr.Version, gvr.Resource, objectName, namespace, p.Params["labelKey"], p.Params["labelVal"])
-	return nil
-}
-
-func labelResources(p c.ParamsStruct) error {
-	for r, v := range p.Resources {
-		_ = v
-		gvr := schema.GroupVersionResource{
-			Group:    r.Group,
-			Version:  r.Version,
-			Resource: r.Resource,
-		}
-		err := SetLabel(r.Namespace, r.ObjectName, gvr, p)
-		if err != nil {
-			log.Println("labeler.go: error (setLabel):", err)
-			return err
-		}
-	}
-	return nil
 }

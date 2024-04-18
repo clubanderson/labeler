@@ -29,7 +29,7 @@ var Version = "0.18.0"
 
 // Plugin interface
 type Plugin interface {
-	Run() []string
+	PluginRun() []string
 }
 
 type ResourceStruct struct {

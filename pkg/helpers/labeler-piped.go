@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	c "github.com/clubanderson/labeler/pkg/common"
+	k "github.com/clubanderson/labeler/pkg/kube-helpers"
 	"gopkg.in/yaml.v3"
 )
 
@@ -60,7 +61,7 @@ func DetectInput(p c.ParamsStruct) error {
 				log.Println("labeler.go: error (traverseinput):", err)
 				return err
 			}
-			labelResources(p)
+			k.LabelResources(p)
 		} else {
 			// log.Println("labeler.go: no YAML data detected in stdin, will try to run again with YAML output")
 			// time to do it the hard way - many may not like this approach (history hack) - the other options above are more than sufficient for most people's use
@@ -112,11 +113,11 @@ func helmOrKubectl(input []string, p c.ParamsStruct) error {
 			return err
 		}
 
-		labelResources(p)
+		k.LabelResources(p)
 
 	} else if cmdFound == "kubectl" || cmdFound == "kustomize" {
 		traverseKubectlOutput(input, p)
-		labelResources(p)
+		k.LabelResources(p)
 	}
 	return nil
 }
