@@ -48,7 +48,7 @@ After hacking at this for some time, I decided to come up with 2 approaches to r
     git clone https://github.com/clubanderson/labeler
     cd labeler
     make build
-    make deploy
+    make install
 ```
   - then -
 ```
@@ -411,7 +411,7 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
     git clone https://github.com/clubanderson/labeler
     cd labeler
     make build
-    make deploy
+    make install
 ```
   then -
 ```
