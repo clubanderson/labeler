@@ -38,6 +38,16 @@ else
 fi
 ((test_number++))
 
+echo
+echo "---------------------------------------------"
+echo "--- kubectl alias with 'creator' AND 'description' annotation (multi-annotation), in default namespace, with --overwrite ---"
+echo "k apply -f ../examples/kubectl/pass --l-annotation=creator='John Doe',description='testing 123' --context=kind-kind --namespace=default --overwrite"
+if ! k apply -f ../examples/kubectl/pass --l-annotation=creator='John Doe',description='testing 123' --context=kind-kind --namespace=default --overwrite; then
+    print_error "test $test_number: ERROR"
+else
+    print_success "test $test_number: SUCCESS"
+fi
+((test_number++))
 
 echo
 echo "---------------------------------------------"

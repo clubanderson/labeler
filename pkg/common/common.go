@@ -195,10 +195,8 @@ func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, n
 		return namespace, err
 	}
 
-	// Create an unstructured.Unstructured object from the map
 	objToCreate := &unstructured.Unstructured{Object: objMap}
 
-	// Now objToCreate is an unstructured.Unstructured object representing the JSON data
 	// log.Printf("objToCreate: %v\n", objToCreate)
 	metadata, ok, _ := unstructured.NestedMap(objToCreate.Object, "Metadata")
 	if !ok {
@@ -212,7 +210,6 @@ func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, n
 	}
 
 	// log.Printf("name: %v\n", name)
-
 	_, err = p.GetObject(ocDynamicClientCoreOrWds, namespace, gvr, name)
 	if err == nil {
 		// object still exists, can't create
@@ -311,8 +308,5 @@ func (p ParamsStruct) GetObject(ocDynamicClientCoreOrWds dynamic.Interface, name
 		return objectJSON, nil
 	}
 
-	if err != nil {
-		return nil, err
-	}
 	return objectJSON, nil
 }

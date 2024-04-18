@@ -77,8 +77,18 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 				}
 			} else if strings.Contains(arg, "=") {
 				parts := strings.Split(arg, "=")
+				var result string
 				if len(parts) > 2 {
-					p.Params[parts[0][2:]] = parts[1] + "=" + parts[2]
+					log.Printf("labeler.go: arg: %v\n", arg)
+					log.Printf("labeler.go: len parts: %v\n", len(parts))
+					for i := 1; i < len(parts); i++ {
+						result += parts[i]
+						if i < len(parts)-1 {
+							result += "="
+						}
+					}
+					log.Printf("labeler.go: result: %v\n", result)
+					p.Params[parts[0][2:]] = result
 				} else {
 					p.Params[parts[0][2:]] = parts[1]
 				}
@@ -268,16 +278,6 @@ func traverseKubectlOutput(input []string, p c.ParamsStruct) {
 	matches := re.FindAllStringSubmatch(allLines, -1)
 
 	namespace := p.Params["namespaceArg"]
-
-	// if c.Flags.Label == "" && p.Params["labelKey"] == "" {
-	// 	if p.Flags["l-debug"] {
-	// 		log.Println("labeler.go: no label provided")
-	// 	}
-	// 	return
-	// }
-	// if c.Flags.Label != "" {
-	// 	p.Params["labelKey"], p.Params["labelVal"] = strings.Split(c.Flags.Label, "=")[0], strings.Split(c.Flags.Label, "=")[1]
-	// }
 
 	if len(matches) == 0 {
 		if p.Flags["l-debug"] {
