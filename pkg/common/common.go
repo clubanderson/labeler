@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var Version = "0.18.2"
+var Version = "0.18.3"
 
 // Plugin interface
 type Plugin interface {
