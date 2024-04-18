@@ -41,6 +41,7 @@ After hacking at this for some time, I decided to come up with 2 approaches to r
 # Install with brew, or clone and build
 ```
     brew tap clubanderson/labeler https://github.com/clubanderson/labeler
+    brew update
     brew install labeler
 ``` 
   - or -
@@ -404,6 +405,7 @@ You need a kubernetes, go, kubectl, helm environment  - create one with Kind:
 ### Install with brew, or clone and build
 ```
     brew tap clubanderson/labeler https://github.com/clubanderson/labeler
+    brew update
     brew install labeler
 ``` 
   or -
