@@ -79,15 +79,15 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 				parts := strings.Split(arg, "=")
 				var result string
 				if len(parts) > 2 {
-					log.Printf("labeler.go: arg: %v\n", arg)
-					log.Printf("labeler.go: len parts: %v\n", len(parts))
+					// log.Printf("labeler.go: arg: %v\n", arg)
+					// log.Printf("labeler.go: len parts: %v\n", len(parts))
 					for i := 1; i < len(parts); i++ {
 						result += parts[i]
 						if i < len(parts)-1 {
 							result += "="
 						}
 					}
-					log.Printf("labeler.go: result: %v\n", result)
+					// log.Printf("labeler.go: result: %v\n", result)
 					p.Params[parts[0][2:]] = result
 				} else {
 					p.Params[parts[0][2:]] = parts[1]
