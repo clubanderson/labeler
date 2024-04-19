@@ -24,7 +24,9 @@ func main() {
 
 	if !h.IsInputFromPipe() {
 		if len(os.Args) <= 1 {
-			log.Printf("no arguments given, need usage here (TODO)")
+			args := []string{os.Args[0], "kubectl", "--l-help"}
+			// log.Printf(args[0] + " requires a subcommand\n")
+			h.AliasRun(args[1:], p)
 		} else {
 			args := os.Args[1:]
 			if args[0] == "--version" || args[0] == "-v" {
