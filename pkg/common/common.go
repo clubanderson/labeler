@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var Version = "0.18.4"
+var Version = "0.18.1"
 
 // Plugin interface
 type Plugin interface {
@@ -183,8 +183,9 @@ func (p ParamsStruct) CreateObjForPlugin(gvk schema.GroupVersionKind, yamlData [
 
 	_, err := p.createObject(p.DynamicClient, namespace, gvr, objectJSON)
 	if err != nil {
-		log.Printf("  🔴 failed to create %v object %q in namespace %q: %v. Check if %q CRD is missing from cluster.\n", objResource, objName, namespace, err, objResource)
+		log.Printf("  🔴 failed to create %v object %q in namespace %v.\n", objResource, objName, namespace)
 	}
+
 }
 
 func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, namespace string, gvr schema.GroupVersionResource, objectJSON []byte) (string, error) {
@@ -195,39 +196,30 @@ func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, n
 		return namespace, err
 	}
 
+	// Create an unstructured.Unstructured object from the map
 	objToCreate := &unstructured.Unstructured{Object: objMap}
 
-	// log.Printf("objToCreate: %v\n", objToCreate)
-	metadata, ok, _ := unstructured.NestedMap(objToCreate.Object, "Metadata")
-	if !ok {
-		fmt.Println("Metadata section not found")
-		return namespace, err
-	}
-	name, ok, _ := unstructured.NestedString(metadata, "Name")
-	if !ok {
-		fmt.Println("Name not found")
-		return namespace, err
-	}
-
-	// log.Printf("name: %v\n", name)
-	_, err = p.GetObject(ocDynamicClientCoreOrWds, namespace, gvr, name)
+	_, err = p.GetObject(ocDynamicClientCoreOrWds, namespace, gvr, objToCreate.GetName())
 	if err == nil {
 		// object still exists, can't create
 		if p.Flags["l-debug"] {
-			log.Printf("          ℹ️  object exists %v/%v/%v %v\n", gvr.Group, gvr.Version, gvr.Resource, name)
+			log.Printf("          ℹ️  object exists %v/%v/%v %v\n", gvr.Group, gvr.Version, gvr.Resource, objToCreate.GetName())
 		}
 		return namespace, err
 	}
 
 	// log.Printf("          ℹ️  object info %v/%v/%v %v\n", gvr.Group, gvr.Version, gvr.Resource, objToCreate.GetName())
 	if errors.IsNotFound(err) {
-		retryCount := 3
+		retryCount := 10
 		for attempt := 1; attempt <= retryCount; attempt++ {
 			if namespace == "" {
 				_, err = ocDynamicClientCoreOrWds.Resource(gvr).Create(context.TODO(), objToCreate, metav1.CreateOptions{})
 
 			} else {
 				_, err = ocDynamicClientCoreOrWds.Resource(gvr).Namespace(namespace).Create(context.TODO(), objToCreate, metav1.CreateOptions{})
+				// if err != nil {
+				// 	// log.Printf("labeler: error creating object %v/%v/%v %v in %v: %v\n", gvr.Group, gvr.Version, gvr.Resource, objToCreate.GetName(), namespace, err)
+				// }
 			}
 			if err == nil {
 				break
@@ -308,5 +300,8 @@ func (p ParamsStruct) GetObject(ocDynamicClientCoreOrWds dynamic.Interface, name
 		return objectJSON, nil
 	}
 
+	if err != nil {
+		return nil, err
+	}
 	return objectJSON, nil
 }

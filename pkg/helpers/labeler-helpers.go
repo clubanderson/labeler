@@ -205,8 +205,10 @@ func AliasRun(args []string, p c.ParamsStruct) error {
 			}
 
 			p.ClientSet, p.RestConfig, p.DynamicClient = SwitchContext(p)
+
 			output := strings.TrimSpace(string(out))
 			lines := strings.Split(output, "\n")
+
 			traverseKubectlOutput(lines, p)
 
 		} else if args[0] == "helm" {
@@ -538,7 +540,7 @@ func getPluginNamesAndArgs(p c.ParamsStruct) {
 		}
 
 		if match, _ := filepath.Match("labeler-*", file.Name()); match {
-			log.Println("*****labeler.go: Found plugin:", file.Name())
+			// log.Println("*****labeler.go: Found plugin:", file.Name())
 			// load plugin
 			pi, err := plugin.Open(filepath.Join(exeDir, file.Name()))
 			if err != nil {
@@ -617,7 +619,7 @@ func SwitchContext(p c.ParamsStruct) (*kubernetes.Clientset, *rest.Config, *dyna
 	var kubeConfigPath string
 
 	if c.Flags.Kubeconfig == "" {
-		kubeConfigPath = filepath.Join(p.HomeDir, ".kube", "config")
+		kubeConfigPath = os.Getenv("KUBECONFIG")
 	} else {
 		kubeConfigPath = filepath.Join(c.Flags.Kubeconfig)
 	}

@@ -12,22 +12,22 @@ import (
 )
 
 type ManifestWork struct {
-	APIVersion string     `yaml:"apiVersion"`
-	Kind       string     `yaml:"kind"`
-	Metadata   mwMetadata `yaml:"metadata"`
-	Spec       mwSpec     `yaml:"spec"`
+	APIVersion string     `json:"apiVersion"`
+	Kind       string     `json:"kind"`
+	Metadata   mwMetadata `json:"metadata"`
+	Spec       mwSpec     `json:"spec"`
 }
 
 type mwMetadata struct {
-	Name string `yaml:"name"`
+	Name string `json:"name"`
 }
 
 type mwSpec struct {
-	Workload Workload `yaml:"workload"`
+	Workload Workload `json:"workload"`
 }
 
 type Workload struct {
-	Manifests []map[string]interface{} `yaml:"manifests"`
+	Manifests []map[string]interface{} `json:"manifests"`
 }
 
 // Remove the unused type declaration
@@ -38,7 +38,7 @@ type Workload struct {
 func PluginCreateMW(p c.ParamsStruct, reflect bool) []string {
 	// function must be exportable (capitalize first letter of function name) to be discovered by labeler
 	if reflect {
-		return []string{"l-mw-name,string,name for the manifestwork object", "l-mw-create,flag,create/apply the manifestwork object"}
+		return []string{"l-mw-name,string,name for the manifestwork object", "l-mw-create,flag,create/apply the manifestwork object", "l-mw-namespace,string,namespace to apply the manifestwork object"}
 	}
 	// type PluginFunction struct {
 	// 	pluginCreateMW string `triggerKey:"l-mw"`

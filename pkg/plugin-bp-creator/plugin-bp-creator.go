@@ -13,38 +13,44 @@ import (
 )
 
 type BindingPolicy struct {
-	APIVersion string   `yaml:"apiVersion"`
-	Kind       string   `yaml:"kind"`
-	Metadata   Metadata `yaml:"metadata"`
-	Spec       Spec     `yaml:"spec"`
+	APIVersion string   `json:"apiVersion"`
+	Kind       string   `json:"kind"`
+	Metadata   Metadata `json:"metadata"`
+	Spec       Spec     `json:"spec"`
 }
 
 type Spec struct {
-	WantSingletonReportedState bool              `yaml:"wantSingletonReportedState"`
-	ClusterSelectors           []ClusterSelector `yaml:"clusterSelectors"`
-	Downsync                   []Downsync        `yaml:"downsync"`
+	WantSingletonReportedState bool              `json:"wantSingletonReportedState"`
+	ClusterSelectors           []ClusterSelector `json:"clusterSelectors"`
+	Downsync                   []Downsync        `json:"downsync"`
 }
 
 type Metadata struct {
-	Name string `yaml:"name"`
+	Name string `json:"name"`
 }
 
 type ClusterSelector struct {
-	MatchLabels map[string]string `yaml:"matchLabels"`
+	MatchLabels map[string]string `json:"matchLabels"`
 }
 
 type Downsync struct {
-	ObjectSelectors []ObjectSelector `yaml:"objectSelectors"`
+	ObjectSelectors []ObjectSelector `json:"objectSelectors"`
 }
 
 type ObjectSelector struct {
-	MatchLabels map[string]string `yaml:"matchLabels"`
+	MatchLabels map[string]string `json:"matchLabels"`
 }
 
 func PluginCreateBP(p c.ParamsStruct, reflect bool) []string {
 	// function must be exportable (capitalize first letter of function name) to be discovered by labeler
 	if reflect {
-		return []string{"l-bp-name,string,name for the bindingpolicy (usage: --l-bp-name=hello-world)", "l-bp-ns,string,namespace for the bindingpolicies (usage: --l-bp-ns=default)", "l-bp-clusterselector,string,value of clusterSelector (usage: --l-bp-clusterselector=app.kubernetes.io/part-of=sample-app)", "l-bp-wantsingletonreportedstate,flag,do you prefer singleton status for an object, if not, then grouped status will be recorded", "l-bp-wds,string,where should the object be created (usage: --l-bp-wds=namespace)"}
+		return []string{
+			"l-bp-name,string,name for the bindingpolicy (usage: --l-bp-name=hello-world)",
+			"l-bp-ns,string,namespace for the bindingpolicies (usage: --l-bp-ns=default)",
+			"l-bp-clusterselector,string,value of clusterSelector (usage: --l-bp-clusterselector=app.kubernetes.io/part-of=sample-app)",
+			"l-bp-wantsingletonreportedstate,flag,do you prefer singleton status for an object, if not, then grouped status will be recorded",
+			"l-bp-wds,string,where should the object be created (usage: --l-bp-wds=namespace)",
+			"l-bp-context,string,context for the object (usage: --l-bp-context=cluster)"}
 	}
 	n := "change-me"
 	nArg := "l-bp-name"
