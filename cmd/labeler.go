@@ -32,6 +32,11 @@ func main() {
 			if args[0] == "--version" || args[0] == "-v" {
 				log.Printf("labeler version %v\n", c.Version)
 			}
+			if args[0] == "--l-help" {
+				args := []string{os.Args[0], "kubectl", "--l-help"}
+				h.AliasRun(args[1:], p)
+			}
+
 			if len(args) > 0 {
 				if args[0] == "k" || args[0] == "h" || args[0] == "kubectl" || args[0] == "helm" {
 					// log.Println("labeler.go: invoked as alias: ")
