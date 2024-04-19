@@ -164,7 +164,7 @@ func expandTilde(args []string) []string {
 	return args
 }
 
-func (p ParamsStruct) CreateObjForPlugin(gvk schema.GroupVersionKind, yamlData []byte, objName, objResource, namespace string, objectJSON []byte) {
+func (p ParamsStruct) CreateObjForPlugin(gvk schema.GroupVersionKind, yamlData []byte, objName, objResource, namespace string, objectJSON []byte) error {
 	gvr := schema.GroupVersionResource{
 		Group:    gvk.Group,
 		Version:  gvk.Version,
@@ -184,8 +184,9 @@ func (p ParamsStruct) CreateObjForPlugin(gvk schema.GroupVersionKind, yamlData [
 	_, err := p.createObject(p.DynamicClient, namespace, gvr, objectJSON)
 	if err != nil {
 		log.Printf("  🔴 failed to create %v object %q in namespace %v.\n", objResource, objName, namespace)
+		return err
 	}
-
+	return nil
 }
 
 func (p ParamsStruct) createObject(ocDynamicClientCoreOrWds dynamic.Interface, namespace string, gvr schema.GroupVersionResource, objectJSON []byte) (string, error) {

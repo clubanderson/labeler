@@ -91,7 +91,7 @@ func PluginCreateMW(p c.ParamsStruct, reflect bool) []string {
 	// log.Printf("yamlData: \n%v", string(yamlData))
 
 	if p.Flags["l-mw-create"] {
-		log.Printf("  🚀 Attempting to create %v object %q in namespace %q", k, n, p.Params["namespaceArg"])
+		log.Printf("  🚀 attempting to create %v object %q in namespace %q", k, n, p.Params["namespaceArg"])
 		// log.Printf("%v %v %v %v %v %v", gvk.Group, gvk.Version, gvk.Kind, n, r, p.Params["namespaceArg"])
 		objectJSON, err := json.Marshal(manifestWork)
 		if err != nil {
@@ -99,7 +99,12 @@ func PluginCreateMW(p c.ParamsStruct, reflect bool) []string {
 			return []string{}
 		}
 		// log.Printf("objectJSON: \n%v", string(objectJSON))
-		p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["namespaceArg"], objectJSON)
+		err = p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["namespaceArg"], objectJSON)
+		if err != nil {
+			log.Printf("  🔴 failed to create %v object %q in namespace %v.\n", r, n, p.Params["namespaceArg"])
+		} else {
+			log.Printf("  🟢 successfully created %v object %q in namespace %v.\n", r, n, p.Params["namespaceArg"])
+		}
 	} else {
 		fmt.Printf("%v", string(yamlData))
 	}

@@ -120,13 +120,18 @@ func PluginCreateBP(p c.ParamsStruct, reflect bool) []string {
 	}
 
 	if p.Params["l-bp-wds"] != "" {
-		log.Printf("  🚀 Attempting to create %v object %q in WDS %q", k, n, p.Params["l-bp-wds"])
+		log.Printf("  🚀 attempting to create %v object %q in WDS %q", k, n, p.Params["l-bp-wds"])
 		objectJSON, err := json.Marshal(bindingPolicy)
 		if err != nil {
 			fmt.Println("Error marshaling JSON:", err)
 			return []string{}
 		}
-		p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["l-bp-wds"], objectJSON)
+		err = p.CreateObjForPlugin(gvk, yamlData, n, r, p.Params["l-bp-wds"], objectJSON)
+		if err != nil {
+			log.Printf("  🔴 failed to create %v object %q in namespace %v.\n", r, n, p.Params["namespaceArg"])
+		} else {
+			log.Printf("  🟢 successfully created %v object %q in namespace %v.\n", r, n, p.Params["namespaceArg"])
+		}
 	} else {
 		fmt.Printf("%v", string(yamlData))
 	}
