@@ -152,8 +152,6 @@ run k as you would an kubectl command with arguments, and labeler will label all
       🏷️ labeled object /v1/namespaces "sealed-secrets" with app.kubernetes.io/part-of=sample-app
 
 # Labeler with a sample OCM ManifestWork as output
-Not entirely working, but a sample manifestwork is output (TODO: output only right now)
-
   with kubectl and kustomize:
 
     k apply -f examples/kubectl/pass --label=app.kubernetes.io/part-of=sample --context=kind-kind --namespace=temp --overwrite --l-mw-create
