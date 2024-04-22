@@ -300,9 +300,4 @@ func (p ParamsStruct) GetObject(ocDynamicClientCoreOrWds dynamic.Interface, name
 		}
 		return objectJSON, nil
 	}
-
-	if err != nil {
-		return nil, err
-	}
-	return objectJSON, nil
 }

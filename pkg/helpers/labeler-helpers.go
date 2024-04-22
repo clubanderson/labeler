@@ -623,10 +623,12 @@ func SwitchContext(p c.ParamsStruct) (*kubernetes.Clientset, *rest.Config, *dyna
 	} else {
 		kubeConfigPath = filepath.Join(c.Flags.Kubeconfig)
 	}
+	// log.Println("labeler.go: kubeconfig path:", kubeConfigPath)
 	// if kubeconfig is still empty, use the default path
 	if kubeConfigPath == "" {
 		kubeConfigPath = filepath.Join(p.HomeDir, ".kube", "config")
 	}
+	// log.Println("labeler.go: kubeconfig path:", kubeConfigPath)
 
 	// load kubeconfig from file
 	apiConfig, err := clientcmd.LoadFromFile(kubeConfigPath)
